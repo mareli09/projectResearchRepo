@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  laravel:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: tua_repository_test
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -proot" --health-interval=10s --health-timeout=5s --health-retries=5
+    env:
+      DB_HOST: 127.0.0.1
+      DB_USERNAME: root
+      DB_PASSWORD: root
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, intl, pdo_mysql, zip, fileinfo, bcmath, gd
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: cp .env.example .env && php artisan key:generate
+      - run: npm ci && npm run build
+      - name: Pint (PSR-12 / Laravel style)
+        run: vendor/bin/pint --test
+      - name: Larastan level 6
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+      - name: Pest
+        run: vendor/bin/pest
+
+  analytics:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analytics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: analytics/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -c "import nltk; [nltk.download(p, download_dir='nltk_data', quiet=True) for p in ('stopwords','wordnet','omw-1.4')]"
+      - run: pytest -q

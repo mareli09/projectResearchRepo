@@ -1,0 +1,128 @@
+@import 'tailwindcss';
+
+/* Self-hosted IBM Plex (CLAUDE.md §15) */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans/700.css';
+@import '@fontsource/ibm-plex-serif/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@import './design.css';
+@import './landing.css';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source "../**/*.blade.php";
+@source "../**/*.js";
+
+/* Dark mode follows data-theme on <html>, set from users.theme_mode or the system setting (§9). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------- Design tokens: light (§15) ---------- */
+:root {
+    --bg: #f3f5f8; --surface: #ffffff; --surface-2: #eef2f7;
+    --ink: #162033; --muted: #5a6579; --line: #dbe1ea;
+    --accent: #1e3a6b; --accent-ink: #ffffff; --accent-soft: #e3eaf6;
+    --gold: #b5862a; --gold-soft: #f6ecd6;
+    --ok: #23744a; --ok-soft: #e2f2e8;
+    --warn: #a66a10; --warn-soft: #fbefd9;
+    --bad: #b0281c; --bad-soft: #fbe4e1;
+    --c1: #1e3a6b; --c2: #b5862a; --c3: #3f8f86; --c4: #a4486a; --c5: #6a5fb0; --c6: #5f8a3a; --c7: #c2622d;
+    --heat0: #eef2f7; --heat1: #1e3a6b;
+    --bar: #1e3a6b; --bar-ink: #ffffff;
+    color-scheme: light;
+}
+
+/* ---------- Design tokens: dark ---------- */
+:root[data-theme="dark"] {
+    --bg: #0e1420; --surface: #161e2d; --surface-2: #1c2638;
+    --ink: #e5eaf2; --muted: #9aa6ba; --line: #2a3549;
+    --accent: #8eb0ea; --accent-ink: #0e1420; --accent-soft: #1f2d48;
+    --gold: #e0b45a; --gold-soft: #3a2f17;
+    --ok: #62c18b; --ok-soft: #173326;
+    --warn: #e8a94a; --warn-soft: #3a2b12;
+    --bad: #f08a7e; --bad-soft: #3d1c19;
+    --c1: #8eb0ea; --c2: #e0b45a; --c3: #5fc0b4; --c4: #e087aa; --c5: #a99ff0; --c6: #9ccc6e; --c7: #f0975e;
+    --heat0: #1c2638; --heat1: #8eb0ea;
+    --bar: #14213b; --bar-ink: #e5eaf2;
+    color-scheme: dark;
+}
+
+/* Expose tokens to Tailwind utilities: bg-surface, text-muted, border-line, text-accent, bg-ok-soft ... */
+@theme inline {
+    --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-serif: "IBM Plex Serif", Georgia, serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+
+    --color-bg: var(--bg);
+    --color-surface: var(--surface);
+    --color-surface-2: var(--surface-2);
+    --color-ink: var(--ink);
+    --color-muted: var(--muted);
+    --color-line: var(--line);
+    --color-accent: var(--accent);
+    --color-accent-ink: var(--accent-ink);
+    --color-accent-soft: var(--accent-soft);
+    --color-gold: var(--gold);
+    --color-gold-soft: var(--gold-soft);
+    --color-ok: var(--ok);
+    --color-ok-soft: var(--ok-soft);
+    --color-warn: var(--warn);
+    --color-warn-soft: var(--warn-soft);
+    --color-bad: var(--bad);
+    --color-bad-soft: var(--bad-soft);
+    --color-bar: var(--bar);
+    --color-bar-ink: var(--bar-ink);
+}
+
+@layer base {
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+        @apply bg-bg text-ink font-sans antialiased;
+        font-size: 14px;
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+    h1 { @apply font-serif font-semibold text-2xl leading-tight; }
+    h2 { @apply font-semibold text-base; }
+    a { @apply text-accent; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    /* Inputs at least 16px so iOS does not zoom (§16). */
+    input, select, textarea { font-size: 16px; }
+}
+
+@layer components {
+    .btn {
+        @apply inline-flex items-center gap-1.5 min-h-11 px-3.5 rounded-md border border-line bg-surface
+            text-ink font-medium no-underline cursor-pointer hover:bg-surface-2 disabled:opacity-50;
+    }
+    .btn-primary { @apply bg-accent text-accent-ink border-accent hover:opacity-90 hover:bg-accent; }
+    .btn-ok { @apply bg-ok text-white border-ok; }
+    .btn-bad { @apply bg-bad text-white border-bad; }
+    .btn-sm { @apply min-h-8 px-2.5 text-[13px]; }
+
+    .pill { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-surface-2 text-muted; }
+    .pill-ok { @apply bg-ok-soft text-ok; }
+    .pill-warn { @apply bg-warn-soft text-warn; }
+    .pill-bad { @apply bg-bad-soft text-bad; }
+    .pill-info { @apply bg-accent-soft text-accent; }
+    .pill-gold { @apply bg-gold-soft text-gold; }
+
+    .chip { @apply inline-flex items-center px-2 py-0.5 rounded border border-line text-xs; }
+    .panel { @apply bg-surface border border-line rounded-lg p-4; }
+    .eyebrow { @apply text-[11px] font-semibold uppercase tracking-wider text-muted; }
+    .mono { @apply font-mono; }
+
+    .callout { @apply border-l-4 border-accent bg-accent-soft rounded-md px-3.5 py-2.5; }
+    .callout-ok { @apply border-ok bg-ok-soft; }
+    .callout-bad { @apply border-bad bg-bad-soft; }
+    .callout-gold { @apply border-gold bg-gold-soft; }
+
+    /* LLM suggestion box: dashed gold, marked "LLM suggestion" (§10) */
+    .ai-box { @apply border-2 border-dashed border-gold rounded-lg p-3; }
+    .ai-tag { @apply inline-block px-1.5 py-0.5 rounded bg-gold-soft text-gold text-[11px] font-semibold uppercase tracking-wide; }
+
+    .field-error { @apply text-bad text-[13px] mt-1; }
+}

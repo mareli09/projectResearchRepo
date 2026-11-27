@@ -1,0 +1,2 @@
+# Laravel scheduler, every minute (CLAUDE.md §19)
+* * * * * cd /var/www/tua-repository && php artisan schedule:run >> /dev/null 2>&1
