@@ -1,8 +1,7 @@
 @props(['score'])
 @php
-    $dup = (float) config('tua.screening.duplicate_threshold');
-    $rev = (float) config('tua.screening.review_threshold');
-    $col = $score >= $dup ? 'var(--bad)' : ($score >= $rev ? 'var(--warn)' : 'var(--ok)');
+    $flag = \App\Domain\Screening\Thresholds::flag((float) $score);
+    $col = ['probable_duplicate' => 'var(--bad)', 'similar' => 'var(--warn)', 'original' => 'var(--ok)'][$flag];
 @endphp
 <div class="score" title="Cosine similarity {{ number_format($score, 2) }}">
     <span class="mono">{{ number_format($score, 2) }}</span>

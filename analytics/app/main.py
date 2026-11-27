@@ -1,7 +1,8 @@
 """TUA analytics service (CLAUDE.md §11).
 
 Listens on 127.0.0.1 only. Every endpoint is POST + JSON and needs a valid
-HMAC signature. It receives text fields only and has no database access.
+HMAC signature. It receives text fields only, returns only scores, cluster
+assignments and top terms, and has no database access.
 
 Run:  uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 1
 """
@@ -11,7 +12,9 @@ import os
 import psutil
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
+from .index import INDEX
 from .security import require_signature
 
 app = FastAPI(
@@ -22,47 +25,87 @@ app = FastAPI(
     dependencies=[Depends(require_signature)],
 )
 
-STATE = {"vectorizer_version": None, "n_docs": 0}
+
+class RecordIn(BaseModel):
+    id: int | str
+    text: str | None = None
+    title: str | None = None
+    abstract: str | None = None
+    keywords: list[str] = Field(default_factory=list)
 
 
-def _not_ready(name: str, sprint: int) -> JSONResponse:
-    return JSONResponse(
-        status_code=501,
-        content={"error": "not_implemented", "detail": f"/{name} is built in Sprint {sprint}"},
-    )
+class FitIn(BaseModel):
+    records: list[RecordIn]
+
+
+class ScreenIn(BaseModel):
+    text: str | None = None
+    title: str | None = None
+    abstract: str | None = None
+    keywords: list[str] = Field(default_factory=list)
+    k: int = Field(default=5, ge=1, le=20)
+    exclude_id: int | str | None = None
+
+
+class RelatedIn(BaseModel):
+    id: int | str
+    k: int = Field(default=5, ge=1, le=20)
+
+
+class ClusterIn(BaseModel):
+    k_min: int = Field(default=2, ge=2, le=30)
+    k_max: int = Field(default=15, ge=2, le=30)
+    k: int | None = Field(default=None, ge=2, le=30)
+
+
+class TopTermsIn(BaseModel):
+    text: str | None = None
+    title: str | None = None
+    abstract: str | None = None
+    keywords: list[str] = Field(default_factory=list)
+    n: int = Field(default=5, ge=1, le=20)
+
+
+def _not_fitted() -> JSONResponse:
+    return JSONResponse(status_code=409, content={"error": "not_fitted", "detail": "Call /fit with the published records first."})
 
 
 @app.post("/health")
 def health() -> dict:
     mem_mb = psutil.Process(os.getpid()).memory_info().rss / 1_048_576
-    return {
-        "ok": True,
-        "vectorizer_version": STATE["vectorizer_version"],
-        "n_docs": STATE["n_docs"],
-        "mem_mb": round(mem_mb, 1),
-    }
+    return {"ok": True, "vectorizer_version": INDEX.version, "n_docs": len(INDEX.ids), "mem_mb": round(mem_mb, 1)}
 
 
 @app.post("/fit")
-def fit():
-    return _not_ready("fit", 4)
+def fit(body: FitIn):
+    if len(body.records) < 2:
+        return JSONResponse(status_code=422, content={"error": "too_few_records", "detail": "At least 2 records are needed."})
+    return INDEX.fit([r.model_dump() for r in body.records])
 
 
 @app.post("/screen")
-def screen():
-    return _not_ready("screen", 4)
+def screen(body: ScreenIn):
+    if not INDEX.ready:
+        return _not_fitted()
+    return INDEX.screen(body.model_dump(), k=body.k, exclude_id=body.exclude_id)
 
 
 @app.post("/related")
-def related():
-    return _not_ready("related", 4)
+def related(body: RelatedIn):
+    if not INDEX.ready:
+        return _not_fitted()
+    return INDEX.related(body.id, k=body.k)
 
 
 @app.post("/top-terms")
-def top_terms():
-    return _not_ready("top-terms", 6)
+def top_terms(body: TopTermsIn):
+    return {"terms": INDEX.top_terms(body.model_dump(), n=body.n)}
 
 
 @app.post("/cluster")
-def cluster():
-    return _not_ready("cluster", 6)
+def cluster(body: ClusterIn):
+    if not INDEX.ready:
+        return _not_fitted()
+    if len(INDEX.ids) < 3:
+        return JSONResponse(status_code=422, content={"error": "too_few_records", "detail": "At least 3 records are needed."})
+    return INDEX.cluster(k_min=body.k_min, k_max=max(body.k_min, body.k_max), k=body.k)

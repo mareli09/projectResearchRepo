@@ -77,3 +77,90 @@ def test_combine_weights_title_and_keywords():
     text = combine("Flood Risk", "Abstract text", ["random forest"])
     assert text.count("Flood Risk") == 2
     assert text.count("random forest") == 3
+
+
+# ---------------- TF-IDF screening and clustering (CLAUDE.md §7 M5 acceptance, M6) ----------------
+
+DOCS = [
+    {"id": 1, "title": "Flood Risk Prediction Using Random Forest", "abstract": "A random forest model predicts flood risk for barangays from rainfall and elevation.", "keywords": ["flood risk", "random forest", "prediction"]},
+    {"id": 2, "title": "Telemedicine Readiness of Rural Health Units", "abstract": "Nurses and patients were surveyed on telemedicine readiness and digital health records.", "keywords": ["telemedicine", "health", "rural"]},
+    {"id": 3, "title": "Social Media Marketing of Milk Tea Shops", "abstract": "The study measures social media marketing effectiveness among small food businesses.", "keywords": ["marketing", "social media", "msme"]},
+    {"id": 4, "title": "Blended Learning and Academic Motivation", "abstract": "Senior high school students in blended learning reported their academic motivation.", "keywords": ["blended learning", "motivation", "students"]},
+    {"id": 5, "title": "Crop Disease Detection Using Convolutional Neural Networks", "abstract": "Images of rice leaves are classified with a convolutional neural network to detect disease.", "keywords": ["crop disease", "cnn", "classification"]},
+    {"id": 6, "title": "Hand Hygiene Compliance of Staff Nurses", "abstract": "Observation of hand hygiene compliance among staff nurses in medical wards.", "keywords": ["hand hygiene", "nursing", "compliance"]},
+]
+
+
+@pytest.fixture
+def index(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANALYTICS_MODEL_DIR", str(tmp_path))
+    from app.index import Index
+
+    idx = Index()
+    idx.fit(DOCS)
+    return idx
+
+
+def test_same_text_scores_one_and_unrelated_scores_low(index):
+    same = index.screen(DOCS[0], k=1)
+    assert same["matches"][0]["id"] == 1
+    assert same["matches"][0]["score"] == pytest.approx(1.0, abs=1e-4)
+
+    unrelated = index.screen({"title": "Structural assessment of pedestrian footbridges", "abstract": "Load testing of steel footbridges along a boulevard.", "keywords": ["footbridge", "structural"]}, k=1)
+    top = unrelated["matches"][0]["score"] if unrelated["matches"] else 0.0
+    assert top < 0.2
+
+
+def test_screen_returns_top_k_with_shared_terms(index):
+    r = index.screen({"title": "Flood prediction with random forest for barangays", "abstract": "Rainfall data and a random forest model.", "keywords": ["flood", "random forest"]}, k=3)
+    assert r["matches"][0]["id"] == 1
+    assert len(r["matches"]) <= 3
+    assert any("random forest" in t or "forest" in t for t in r["matches"][0]["shared_terms"])
+    assert r["top_terms"]
+
+
+def test_related_excludes_itself(index):
+    r = index.related(1, k=3)
+    assert all(m["id"] != 1 for m in r["matches"])
+
+
+def test_index_is_persisted_and_reloaded(index, tmp_path):
+    from app.index import Index
+
+    again = Index()
+    again.load()
+    assert again.ready and again.version == index.version and again.ids == [d["id"] for d in DOCS]
+
+
+def test_cluster_scores_every_k_and_assigns_every_record(index):
+    r = index.cluster(k_min=2, k_max=4)
+    assert [s["k"] for s in r["scores"]] == [2, 3, 4]
+    assert r["chosen_k"] == max(r["scores"], key=lambda s: s["silhouette"])["k"]
+    assert len(r["assignments"]) == len(DOCS)
+    assert sum(c["size"] for c in r["clusters"]) == len(DOCS)
+    assert all(len(c["top_terms"]) == 10 for c in r["clusters"])
+
+
+def test_cluster_is_repeatable(index):
+    a = index.cluster(k_min=3, k_max=3)
+    b = index.cluster(k_min=3, k_max=3)
+    assert [x["cluster"] for x in a["assignments"]] == [x["cluster"] for x in b["assignments"]]
+
+
+def test_endpoints_need_fit_first(client, monkeypatch, tmp_path):
+    monkeypatch.setenv("ANALYTICS_MODEL_DIR", str(tmp_path / "empty"))
+    from app import main
+
+    main.INDEX.vectorizer = None
+    main.INDEX.matrix = None
+    main.INDEX.ids = []
+    raw, headers = signed({"title": "x", "abstract": "y"})
+    assert client.post("/screen", content=raw, headers=headers).status_code == 409
+
+    raw, headers = signed({"records": DOCS})
+    r = client.post("/fit", content=raw, headers=headers)
+    assert r.status_code == 200 and r.json()["n_docs"] == 6
+
+    raw, headers = signed({"title": "Flood risk random forest", "abstract": "rainfall", "keywords": [], "k": 2})
+    r = client.post("/screen", content=raw, headers=headers)
+    assert r.status_code == 200 and r.json()["matches"][0]["id"] == 1

@@ -4,6 +4,9 @@ namespace App\Domain\Repository;
 
 use App\Domain\Audit\Audit;
 use App\Domain\Audit\AuditEvent;
+use App\Domain\Screening\Screener;
+use App\Domain\Submissions\Workflow;
+use App\Jobs\RefitIndex;
 use App\Models\Keyword;
 use App\Models\RecordAuthor;
 use App\Models\ResearchRecord;
@@ -91,8 +94,13 @@ final class RecordWriter
         $record->status = 'published';
         $record->published_at ??= now();
         $record->save();
-        // Sprint 4–6: index for search and queue for the next clustering run (§7 M3).
         Audit::record(AuditEvent::PUBLISHED, 'Record published', $record, ['public_id' => $record->public_id], $by);
+
+        // Index for screening and related studies: refit after every N new records (§7 M5).
+        // It joins the next clustering run automatically (runs take all published records).
+        if (Screener::notePublished()) {
+            DB::afterCommit(fn () => Workflow::queue(new RefitIndex));
+        }
     }
 
     /** Withdraw = status withdrawn + soft delete. Files and history are kept. */

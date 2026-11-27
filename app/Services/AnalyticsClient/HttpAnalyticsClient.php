@@ -2,7 +2,9 @@
 
 namespace App\Services\AnalyticsClient;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -29,9 +31,9 @@ class HttpAnalyticsClient implements AnalyticsClient
         return $this->post('/fit', ['records' => $records]);
     }
 
-    public function screen(string $text, int $k = 5): array
+    public function screen(array $fields, int $k = 5, int|string|null $excludeId = null): array
     {
-        return $this->post('/screen', ['text' => $text, 'k' => $k]);
+        return $this->post('/screen', $fields + ['k' => $k, 'exclude_id' => $excludeId]);
     }
 
     public function related(int|string $id, int $k = 5): array
@@ -44,9 +46,9 @@ class HttpAnalyticsClient implements AnalyticsClient
         return $this->post('/cluster', ['k_min' => $kMin, 'k_max' => $kMax, 'k' => $k]);
     }
 
-    public function topTerms(string $text, int $n = 5): array
+    public function topTerms(array $fields, int $n = 5): array
     {
-        return $this->post('/top-terms', ['text' => $text, 'n' => $n])['terms'] ?? [];
+        return array_values($this->post('/top-terms', $fields + ['n' => $n])['terms'] ?? []);
     }
 
     public function health(): array
@@ -101,6 +103,9 @@ class HttpAnalyticsClient implements AnalyticsClient
         return Http::baseUrl($this->baseUrl)
             ->acceptJson()
             ->timeout($this->timeout)
-            ->retry($this->retries, fn (int $attempt) => 200 * (2 ** ($attempt - 1)), throw: true);
+            // Retry with backoff only when the service is unreachable or fails (§11); 4xx answers are final.
+            ->retry($this->retries, fn (int $attempt) => 200 * (2 ** ($attempt - 1)),
+                fn (\Throwable $e) => $e instanceof ConnectionException || ($e instanceof RequestException && $e->response->serverError()),
+                throw: true);
     }
 }

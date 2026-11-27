@@ -1,8 +1,7 @@
-{{-- Similarity flag (CLAUDE.md §7 M5): at or above the duplicate threshold, at or above the review threshold, or original. --}}
+{{-- Similarity flag (CLAUDE.md §7 M5), thresholds from Settings. --}}
 @props(['score'])
 @php
-    $dup = (float) config('tua.screening.duplicate_threshold');
-    $rev = (float) config('tua.screening.review_threshold');
-    [$v, $t] = $score >= $dup ? ['bad', 'Probable duplicate'] : ($score >= $rev ? ['warn', 'Similar, needs review'] : ['ok', 'Original']);
+    $flag = \App\Domain\Screening\Thresholds::flag((float) $score);
+    $v = ['probable_duplicate' => 'bad', 'similar' => 'warn', 'original' => 'ok'][$flag];
 @endphp
-<x-pill :variant="$v">{{ $t }}</x-pill>
+<x-pill :variant="$v">{{ \App\Domain\Screening\Thresholds::label($flag) }}</x-pill>

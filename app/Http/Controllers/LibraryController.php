@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Domain\Search\RecordSearch;
 use App\Domain\Site\Corpus;
 use App\Models\ResearchRecord;
+use App\Services\AnalyticsClient\AnalyticsClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Throwable;
 
 /** Signed-in library: search, study page, notifications (CLAUDE.md §7 M3, M4). */
 class LibraryController extends Controller
@@ -43,12 +46,39 @@ class LibraryController extends Controller
     }
 
     /**
-     * Related studies. For now: most shared keywords, scored by overlap (Jaccard).
-     * Sprint 4 replaces this with the top 5 by cosine similarity of the TF-IDF vectors.
+     * Related studies: the top 5 by cosine similarity of the stored TF-IDF vectors (CLAUDE.md §7 M4).
+     * If the analytics service is down, falls back to the most shared keywords (Jaccard overlap),
+     * and remembers the outage for a minute so pages stay fast.
      *
      * @return Collection<int, array{record: ResearchRecord, score: float}>
      */
     public static function related(ResearchRecord $record): Collection
+    {
+        if (! Cache::has('analytics.down')) {
+            try {
+                $matches = app(AnalyticsClient::class)->related($record->id, 5)['matches'];
+                $models = ResearchRecord::published()->with('academicUnit:id,code')->whereIn('id', array_column($matches, 'id'))->get()->keyBy('id');
+                $out = [];
+                foreach ($matches as $m) {
+                    if ($models->has($m['id'])) {
+                        /** @var ResearchRecord $model */
+                        $model = $models[$m['id']];
+                        $out[] = ['record' => $model, 'score' => round((float) $m['score'], 2)];
+                    }
+                }
+                if ($out !== []) {
+                    return collect($out);
+                }
+            } catch (Throwable) {
+                Cache::put('analytics.down', true, 60);
+            }
+        }
+
+        return self::relatedByKeywords($record);
+    }
+
+    /** @return Collection<int, array{record: ResearchRecord, score: float}> */
+    public static function relatedByKeywords(ResearchRecord $record): Collection
     {
         $ids = $record->keywords->pluck('id');
         if ($ids->isEmpty()) {

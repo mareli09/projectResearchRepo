@@ -9,6 +9,7 @@ use App\Domain\Repository\FileSlots;
 use App\Domain\Repository\RecordRules;
 use App\Domain\Repository\RecordWriter;
 use App\Domain\Repository\ResearchTypes;
+use App\Jobs\ScreenSubmission;
 use App\Models\AcademicUnit;
 use App\Models\Program;
 use App\Models\RecordFile;
@@ -19,8 +20,10 @@ use App\Models\User;
 use App\Notifications\WorkflowNotice;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Throwable;
 
 /**
  * The four-step submission workflow (CLAUDE.md §7 M3):
@@ -81,6 +84,7 @@ final class Workflow
         });
 
         Audit::record(AuditEvent::SUBMIT, "Submitted {$sub->public_id} with ".count($uploads).' files', $sub, ['public_id' => $sub->public_id], $student);
+        self::queue(new ScreenSubmission($sub));
         $this->tell($student, "{$sub->public_id} received",
             'All required files were received. Your adviser was asked to endorse it. The similarity screening result appears on your status page.', $sub, 'student.status');
         $this->tell($sub->adviser, "New submission to endorse: {$sub->public_id}", "{$student->name} submitted \"{$sub->title}\".", $sub, 'adviser.review');
@@ -169,7 +173,21 @@ final class Workflow
         }
 
         $this->move($sub, 'submitted', 1, $student, 'resubmit', $note, AuditEvent::SUBMIT, 'Resubmitted after revision');
+        self::queue(new ScreenSubmission($sub));
         $this->tell($sub->adviser, "Resubmitted for endorsement: {$sub->public_id}", "{$student->name} revised and resubmitted \"{$sub->title}\".", $sub, 'adviser.review');
+    }
+
+    /**
+     * Queue background work (screening, refits). A failure of the analytics service must never
+     * block the workflow: the job retries, and the screens say "Screening is queued" meanwhile.
+     */
+    public static function queue(object $job): void
+    {
+        try {
+            dispatch($job);
+        } catch (Throwable $e) {
+            Log::warning('background_job_failed', ['job' => $job::class, 'error' => $e->getMessage()]);
+        }
     }
 
     /** SUB-0143 and up, numbered across all submissions. */

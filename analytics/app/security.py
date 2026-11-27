@@ -11,14 +11,26 @@ import hashlib
 import hmac
 import os
 import time
+from pathlib import Path
 
 from fastapi import HTTPException, Request
 
 MAX_SKEW_SECONDS = 60
 
 
+def _from_laravel_env() -> str:
+    """Local convenience: read the secret from the Laravel .env next to this folder.
+    On the server, Supervisor sets ANALYTICS_HMAC_SECRET in the environment instead."""
+    env = Path(__file__).resolve().parent.parent.parent / ".env"
+    if env.exists():
+        for line in env.read_text(encoding="utf-8").splitlines():
+            if line.startswith("ANALYTICS_HMAC_SECRET="):
+                return line.split("=", 1)[1].strip().strip('"')
+    return ""
+
+
 def get_secret() -> bytes:
-    secret = os.environ.get("ANALYTICS_HMAC_SECRET", "")
+    secret = os.environ.get("ANALYTICS_HMAC_SECRET", "") or _from_laravel_env()
     if not secret:
         raise RuntimeError("ANALYTICS_HMAC_SECRET is not set")
     return secret.encode()
