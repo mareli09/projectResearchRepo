@@ -152,10 +152,12 @@ Route::middleware('auth')->group(function () {
         Route::post('/screening', [CoordinatorController::class, 'decide'])->name('decide');
         Route::get('/themes', [ClusteringController::class, 'themes'])->name('themes');
         Route::get('/analytics', [CoordinatorController::class, 'analytics'])->name('analytics');
+        Route::get('/analytics/export/{format}', [CoordinatorController::class, 'export'])->where('format', 'xlsx|csv|pdf')->middleware('throttle:20,1')->name('analytics.export');
     });
 
     Route::middleware('role:'.User::ROLE_URDC)->prefix('/urdc')->name('urdc.')->group(function () {
         Route::get('/analytics', [UrdcController::class, 'analytics'])->name('analytics');
+        Route::get('/analytics/export/{format}', [UrdcController::class, 'export'])->where('format', 'xlsx|csv|pdf')->middleware('throttle:20,1')->name('analytics.export');
         Route::get('/approvals', [UrdcController::class, 'approvals'])->name('approvals');
         Route::post('/approvals', [UrdcController::class, 'decide'])->name('decide');
         Route::get('/requests', [AccessRequestController::class, 'index'])->name('requests');

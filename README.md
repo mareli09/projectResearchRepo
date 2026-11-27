@@ -448,3 +448,24 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
 - The evaluator gets the usual 48-hour activation link and **chooses their own password** on the activation page. The administrator never sees it.
 - The account stops working at the end of the expiry day, and a signed-in evaluator is signed out at the next click. "End now" ends it at once and signs it out everywhere.
 - **Every action is logged.** Actions log themselves as for any user, and every page an evaluator opens is logged as a `view` event. The page links each evaluator to their entries in the activity log.
+
+## Dashboard exports and KPI snapshots
+
+**KPI snapshots** (CLAUDE.md §7 M7 "Speed"):
+- `php artisan analytics:snapshot` runs every night at 2:15 AM.
+- It counts the summary figures into `kpi_snapshots`: published outputs, downloads, views and complete records per college and per year, plus active users and searches for the last 30 days.
+- A cluster or the whole university is the sum of its colleges. Active users for the whole university also include staff with no college.
+- The summary cards read the snapshot when only the college and year filters are used, and the page says "Summary figures as of …". With a theme or SDG filter, or before the first snapshot, they are counted live and the page says so.
+- **Active users** are the people with any logged action in the last 30 days.
+
+**Charts that used sample figures now read the logs:**
+- **Similarity screening:** checks per month for the last 6 months by flag, from `similarity_checks`. Screened, flagged and confirmed duplicates are counted for the academic year (June to May); confirmed duplicates are coordinator decisions labeled "duplicate".
+- **Repository usage:** views (activity log `view`), searches (`search_logs`, university-wide) and downloads (`download_logs`) per week for the last 12 weeks.
+
+**Exports** (URDC "Analytics dashboard" and coordinator "Cluster analytics"):
+- **Export Excel** gives an `.xlsx` workbook: an About sheet, then one sheet per panel.
+- **CSV** gives one file with every panel in turn, with a UTF-8 BOM so Excel shows the characters correctly.
+- **Export PDF report** gives an A4 report (dompdf) with the summary cards and a table for each panel. Two-column tables get small bars.
+- Exports use the filters on the page. A coordinator only ever gets their own cluster: a college from another cluster in the address gives empty figures.
+- Cells that start with `=`, `+`, `-` or `@` are prefixed with `'`, so a spreadsheet never runs them as formulas.
+- Each export is logged as a `download` event.

@@ -92,7 +92,7 @@ it('marks actions that are not built yet as design previews', function () {
         ->assertSee('Submit for adviser endorsement')
         ->assertDontSee('data-preview="Sprint 6"', false)
         ->assertSee('LLM suggestion');
-    $this->actingAs(demo(User::ROLE_URDC))->get('/urdc/analytics')->assertSee('data-preview="Sprint 7"', false);
+    $this->actingAs(demo(User::ROLE_URDC))->get('/urdc/analytics')->assertDontSee('data-preview', false);
 });
 
 it('filters search by facets on real records', function () {

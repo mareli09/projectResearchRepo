@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Design;
 
 use App\Domain\Analytics\Dashboard;
+use App\Domain\Analytics\DashboardExport;
 use App\Domain\Submissions\SubmissionPresenter;
 use App\Domain\Submissions\Workflow;
 use App\Http\Controllers\Controller;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 /** Research coordinator screens (CLAUDE.md §7 M5, M6, M7). */
 class CoordinatorController extends Controller
@@ -104,6 +106,15 @@ class CoordinatorController extends Controller
             'd' => Dashboard::build($scope, $filters, false),
             'route' => 'coordinator.analytics',
         ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        $cluster = $this->cluster();
+        $scope = $cluster?->academicUnits->pluck('code')->all() ?: ['IBAM', 'CEIS'];
+
+        return DashboardExport::response($format, 'Cluster analytics', 'Cluster '.($cluster->number ?? 1).' · '.($cluster->name ?? 'Business and Technology'),
+            $scope, $request->only('college', 'year', 'theme', 'sdg'), false, $request->user());
     }
 
     private function cluster(): ?ResearchCluster

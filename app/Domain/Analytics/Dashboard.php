@@ -2,17 +2,24 @@
 
 namespace App\Domain\Analytics;
 
+use App\Domain\Audit\Activity;
 use App\Domain\Repository\ResearchTypes;
 use App\Domain\Search\UsageLog;
 use App\Domain\Site\Corpus;
+use App\Models\AcademicUnit;
+use App\Models\ResearchRecord;
 use App\Models\Sdg;
+use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Builds the Table 7 visual analytics (CLAUDE.md §7 M7) as ECharts options.
- * Counts come from the published records; screening, usage and active users are
- * sample figures until their modules log real data (Sprints 4, 5, 7).
- * Sprint 7 moves this onto nightly kpi_snapshots.
+ * The summary cards read the nightly kpi_snapshots when the filters allow it (college and
+ * year); theme and SDG filters, and a repository with no snapshot yet, are counted live.
+ * Charts come from the published records (cached corpus), the screening tables, the
+ * activity log (views), search_logs and download_logs.
  */
 final class Dashboard
 {
@@ -39,21 +46,35 @@ final class Dashboard
         $base = collect(array_values($base->all()));
         $recs = collect(array_values($recs->all()));
 
-        $latestYear = (int) ($base->max('year') ?? date('Y'));
-        $thisYr = $base->where('year', $latestYear)->count();
-        $lastYr = $base->where('year', $latestYear - 1)->count();
         $cols = array_values(array_filter(['CAHS', 'CASE', 'IBAM', 'CEIS', 'CMT', 'SLCN'], fn ($c) => in_array($c, $scope, true)));
+        // A college outside the scope (for example another cluster's) gives an empty scope, never its figures.
+        $inScope = ! empty($filters['college']) ? array_values(array_intersect($cols, [(string) $filters['college']])) : $cols;
+        $whole = count($inScope) >= 6;
         $labels = Corpus::themeLabels();
         $sdgNames = Sdg::pluck('name', 'id')->all();
 
+        // Summary cards: from the nightly snapshot when only college and year are filtered.
+        $snap = empty($filters['theme']) && empty($filters['sdg'])
+            ? KpiSnapshots::summary($inScope, empty($filters['year']) ? null : (int) $filters['year']) : null;
+        if ($snap !== null) {
+            [$total, $latestYear, $thisYr, $lastYr, $active, $downloads] = [$snap['outputs'], $snap['latest_year'], $snap['this_year'], $snap['last_year'], $snap['active_users'], $snap['downloads']];
+        } else {
+            $latestYear = (int) ($base->max('year') ?? date('Y'));
+            [$total, $thisYr, $lastYr, $downloads] = [$recs->count(), $base->where('year', $latestYear)->count(), $base->where('year', $latestYear - 1)->count(), (int) $recs->sum('downloads')];
+            $active = self::activeUsers($inScope, $whole);
+        }
+        $screening = self::screening($inScope);
+
         return [
             'kpis' => [
-                ['Total outputs', number_format($recs->count()), 'in the repository', ''],
+                ['Total outputs', number_format($total), 'in the repository', ''],
                 ["Outputs in {$latestYear}", number_format($thisYr), 'calendar year', ''],
                 ['Growth rate', ($lastYr ? number_format(($thisYr - $lastYr) / $lastYr * 100, 1) : '0').'%', "{$latestYear} vs ".($latestYear - 1), $thisYr >= $lastYr ? 'up' : ''],
-                ['Active users', number_format((int) round(612 * max(1, $recs->count()) / 1419)), 'last 30 days (sample)', ''],
-                ['Downloads', number_format($recs->sum('downloads')), 'all time', ''],
+                ['Active users', number_format($active), 'last '.KpiSnapshots::ACTIVE_DAYS.' days', ''],
+                ['Downloads', number_format($downloads), 'all time', ''],
             ],
+            'asOf' => $snap !== null ? $snap['computed_at']->format('M j, Y · g:i A') : null,
+            'screeningTotals' => $screening['totals'],
             'charts' => array_filter([
                 'trend' => self::trend($base->all()),
                 'college' => self::byCollegeAndType($recs->all(), $cols),
@@ -64,8 +85,8 @@ final class Dashboard
                 'sdg' => self::sdgBars($recs->all(), $sdgNames),
                 'keywords' => self::keywordBars($recs->all()),
                 'advisers' => self::adviserBars($recs->all()),
-                'screening' => self::screening(),
-                'usage' => $full ? self::usage() : null,
+                'screening' => $screening['chart'],
+                'usage' => $full ? self::usage($inScope, $whole) : null,
             ]),
             'compliance' => collect($cols)->map(function ($c) use ($recs) {
                 $all = $recs->where('college', $c);
@@ -244,34 +265,99 @@ final class Dashboard
     }
 
     /**
-     * Sample until screening runs (Sprint 4).
+     * Distinct users who did something logged in the last 30 days, in the colleges in scope.
      *
-     * @return array<string, mixed>
+     * @param  list<string>  $colleges
      */
-    private static function screening(): array
+    private static function activeUsers(array $colleges, bool $whole): int
     {
-        return ['tooltip' => ['trigger' => 'axis'], 'legend' => (object) [],
-            'xAxis' => ['type' => 'category', 'data' => ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov']], 'yAxis' => ['type' => 'value'],
-            'series' => [
-                ['name' => 'Original', 'type' => 'bar', 'stack' => 's', 'data' => [18, 22, 31, 40, 29, 15], 'itemStyle' => ['color' => 'var(--ok)']],
-                ['name' => 'Needs review', 'type' => 'bar', 'stack' => 's', 'data' => [3, 4, 6, 5, 4, 3], 'itemStyle' => ['color' => 'var(--warn)']],
-                ['name' => 'Probable duplicate', 'type' => 'bar', 'stack' => 's', 'data' => [1, 0, 2, 1, 1, 1], 'itemStyle' => ['color' => 'var(--bad)']],
-            ]];
+        $q = Activity::query()->where('activity_log.causer_type', (new User)->getMorphClass())
+            ->where('activity_log.created_at', '>=', now()->subDays(KpiSnapshots::ACTIVE_DAYS));
+        if (! $whole) {
+            $q->join('users', 'users.id', '=', 'activity_log.causer_id')
+                ->whereIn('users.academic_unit_id', AcademicUnit::whereIn('code', $colleges)->pluck('id'));
+        }
+
+        return (int) $q->distinct()->count('activity_log.causer_id');
     }
 
     /**
-     * Sample until search_logs and download_logs fill (Sprints 2, 5).
+     * Similarity screening (Table 7 visual 10): checks in the last 6 months by flag, and the totals
+     * for the academic year (June to May): screened, flagged, and duplicates confirmed by a coordinator.
      *
+     * @param  list<string>  $colleges
+     * @return array{chart: array<string, mixed>, totals: array{screened: int, flagged: int, confirmed: int, year: string}}
+     */
+    private static function screening(array $colleges): array
+    {
+        $units = AcademicUnit::whereIn('code', $colleges)->pluck('id');
+        $tz = (string) config('app.timezone');
+        $now = now($tz);
+        $months = collect(range(5, 0))->map(fn (int $i) => $now->copy()->startOfMonth()->subMonths($i));
+        $checks = DB::table('similarity_checks')->join('submissions', 'submissions.id', '=', 'similarity_checks.submission_id')
+            ->whereIn('submissions.academic_unit_id', $units)
+            ->where('similarity_checks.run_at', '>=', $months->first()->copy()->utc())
+            ->get(['similarity_checks.run_at', 'similarity_checks.flag']);
+        $count = fn (string $flag) => $months->map(fn (Carbon $m) => $checks->filter(fn ($c) => $c->flag === $flag
+            && Carbon::parse($c->run_at, 'UTC')->timezone($tz)->format('Y-m') === $m->format('Y-m'))->count())->all();
+
+        $ayStart = $now->copy()->setDate($now->month >= 6 ? $now->year : $now->year - 1, 6, 1)->startOfDay();
+        $ay = DB::table('similarity_checks')->join('submissions', 'submissions.id', '=', 'similarity_checks.submission_id')
+            ->whereIn('submissions.academic_unit_id', $units)->where('similarity_checks.run_at', '>=', $ayStart->copy()->utc());
+        $confirmed = DB::table('screening_decisions')->join('submissions', 'submissions.id', '=', 'screening_decisions.submission_id')
+            ->whereIn('submissions.academic_unit_id', $units)->where('screening_decisions.label_for_calibration', 'duplicate')
+            ->where('screening_decisions.created_at', '>=', $ayStart->copy()->utc())->count();
+
+        return [
+            'chart' => ['tooltip' => ['trigger' => 'axis'], 'legend' => (object) [],
+                'xAxis' => ['type' => 'category', 'data' => $months->map(fn (Carbon $m) => $m->format('M'))->all()], 'yAxis' => ['type' => 'value', 'minInterval' => 1],
+                'series' => [
+                    ['name' => 'Original', 'type' => 'bar', 'stack' => 's', 'data' => $count('original'), 'itemStyle' => ['color' => 'var(--ok)']],
+                    ['name' => 'Needs review', 'type' => 'bar', 'stack' => 's', 'data' => $count('similar'), 'itemStyle' => ['color' => 'var(--warn)']],
+                    ['name' => 'Probable duplicate', 'type' => 'bar', 'stack' => 's', 'data' => $count('probable_duplicate'), 'itemStyle' => ['color' => 'var(--bad)']],
+                ]],
+            'totals' => [
+                'screened' => (clone $ay)->count(),
+                'flagged' => (clone $ay)->where('similarity_checks.flag', '!=', 'original')->count(),
+                'confirmed' => $confirmed,
+                'year' => 'AY '.$ayStart->year.'–'.($ayStart->year + 1),
+            ],
+        ];
+    }
+
+    /**
+     * Repository usage (Table 7 visual 12): study views, searches and downloads per week, last 12 weeks.
+     * Searches are counted for the whole university (a search belongs to no college).
+     *
+     * @param  list<string>  $colleges
      * @return array<string, mixed>
      */
-    private static function usage(): array
+    private static function usage(array $colleges, bool $whole): array
     {
+        $tz = (string) config('app.timezone');
+        $now = now($tz);
+        $weeks = collect(range(11, 0))->map(fn (int $i) => $now->copy()->startOfWeek()->subWeeks($i));
+        $from = $weeks->first()->copy()->utc();
+        $units = AcademicUnit::whereIn('code', $colleges)->pluck('id');
+
+        // Timestamps are stored in UTC; bucket them into Manila weeks.
+        $times = fn ($q, string $col) => $q->where($col, '>=', $from)->pluck($col)
+            ->map(fn ($t) => Carbon::parse((string) $t, 'UTC')->timezone($tz));
+        $views = $times(DB::table('activity_log')->where('event', 'view')->where('subject_type', (new ResearchRecord)->getMorphClass())
+            ->join('research_records', 'research_records.id', '=', 'activity_log.subject_id')
+            ->when(! $whole, fn ($q) => $q->whereIn('research_records.academic_unit_id', $units)), 'activity_log.created_at');
+        $downloads = $times(DB::table('download_logs')->join('research_records', 'research_records.id', '=', 'download_logs.record_id')
+            ->when(! $whole, fn ($q) => $q->whereIn('research_records.academic_unit_id', $units)), 'download_logs.created_at');
+        $searches = $times(DB::table('search_logs'), 'search_logs.created_at');
+
+        $byWeek = fn (Collection $at) => $weeks->map(fn (Carbon $w) => $at->filter(fn (Carbon $t) => $t->between($w, $w->copy()->endOfWeek()))->count())->all();
+
         return ['tooltip' => ['trigger' => 'axis'], 'legend' => (object) [],
-            'xAxis' => ['type' => 'category', 'data' => array_map(fn ($i) => 'W'.($i + 36), range(0, 11))], 'yAxis' => ['type' => 'value'],
+            'xAxis' => ['type' => 'category', 'data' => $weeks->map(fn (Carbon $w) => $w->format('M j'))->all()], 'yAxis' => ['type' => 'value', 'minInterval' => 1],
             'series' => [
-                ['name' => 'Views', 'type' => 'line', 'smooth' => .2, 'data' => [820, 910, 880, 1010, 1190, 1240, 1105, 1320, 1415, 1380, 1502, 1610]],
-                ['name' => 'Searches', 'type' => 'line', 'smooth' => .2, 'data' => [540, 600, 610, 700, 820, 860, 790, 910, 990, 960, 1040, 1120]],
-                ['name' => 'Downloads', 'type' => 'bar', 'barMaxWidth' => 14, 'data' => [120, 140, 130, 160, 190, 200, 180, 215, 240, 230, 250, 268]],
+                ['name' => 'Views', 'type' => 'line', 'smooth' => .2, 'data' => $byWeek($views)],
+                ['name' => 'Searches', 'type' => 'line', 'smooth' => .2, 'data' => $byWeek($searches)],
+                ['name' => 'Downloads', 'type' => 'bar', 'barMaxWidth' => 14, 'data' => $byWeek($downloads)],
             ]];
     }
 

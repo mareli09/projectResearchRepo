@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Design;
 
 use App\Domain\Analytics\Dashboard;
+use App\Domain\Analytics\DashboardExport;
 use App\Domain\Submissions\SubmissionPresenter;
 use App\Domain\Submissions\Workflow;
 use App\Http\Controllers\Controller;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
 
 /** URDC administrator screens (CLAUDE.md §7 M3–M7). */
 class UrdcController extends Controller
@@ -30,6 +32,12 @@ class UrdcController extends Controller
             'd' => Dashboard::build($scope, $filters, true),
             'route' => 'urdc.analytics',
         ]);
+    }
+
+    public function export(Request $request, string $format): Response
+    {
+        return DashboardExport::response($format, 'University research dashboard', 'University-wide', ['CAHS', 'CASE', 'IBAM', 'CEIS', 'CMT', 'SLCN'],
+            $request->only('college', 'year', 'theme', 'sdg'), true, $request->user());
     }
 
     public function approvals(): View

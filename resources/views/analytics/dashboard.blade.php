@@ -10,8 +10,10 @@
 <x-layouts.app :title="$title">
     <x-page-head :eyebrow="$eyebrow" :title="$title">
         <x-slot:actions>
-            <x-button preview="Sprint 7" data-preview-what="Export Excel">Export Excel</x-button>
-            <x-button preview="Sprint 7" data-preview-what="Export PDF report">Export PDF report</x-button>
+            @php $exportQuery = array_filter(array_intersect_key($filters, array_flip(['college', 'year', 'theme', 'sdg']))); @endphp
+            <x-button :href="route($route.'.export', ['format' => 'xlsx'] + $exportQuery)">Export Excel</x-button>
+            <x-button :href="route($route.'.export', ['format' => 'csv'] + $exportQuery)">CSV</x-button>
+            <x-button :href="route($route.'.export', ['format' => 'pdf'] + $exportQuery)">Export PDF report</x-button>
         </x-slot:actions>
     </x-page-head>
 
@@ -38,6 +40,7 @@
     </form>
 
     @php $kpiIcons = [['book', 'accent'], ['chart', 'ok'], ['heart', 'gold'], ['users', 'warn'], ['import', 'bad']]; @endphp
+    <p class="small text-muted mb-2">{{ $d['asOf'] ? 'Summary figures as of '.$d['asOf'].' (refreshed nightly).' : 'Summary figures counted live.' }}</p>
     <div class="g5 mb-4">@foreach ($d['kpis'] as $i => [$l, $v, $h, $up])<x-kpi :label="$l" :value="$v" :hint="$h" :up="$up === 'up'" :icon="$kpiIcons[$i][0] ?? null" :icon-tone="$kpiIcons[$i][1] ?? 'accent'" />@endforeach</div>
 
     <div class="g2">
@@ -57,11 +60,11 @@
             <x-chart :option="$d['charts']['keywords']" label="Top keywords" :link="$q(['q' => '__N__'])" /></x-panel>
         <x-panel title="Adviser load"><x-slot:actions><span class="text-muted small">studies supervised, last 3 years</span></x-slot:actions>
             <x-chart :option="$d['charts']['advisers']" label="Adviser load" :link="$q(['adviser' => '__N__'])" /></x-panel>
-        <x-panel title="Similarity screening summary"><x-slot:actions><span class="text-muted small">AY 2026–2027 · sample</span></x-slot:actions>
+        <x-panel title="Similarity screening summary"><x-slot:actions><span class="text-muted small">{{ $d['screeningTotals']['year'] }} · chart: last 6 months</span></x-slot:actions>
             <div class="g3 mb-2.5">
-                <div><div class="eyebrow">Screened</div><div class="num text-xl font-semibold">186</div></div>
-                <div><div class="eyebrow">Flagged</div><div class="num text-xl font-semibold" style="color: var(--warn)">31</div></div>
-                <div><div class="eyebrow">Confirmed duplicates</div><div class="num text-xl font-semibold" style="color: var(--bad)">6</div></div>
+                <div><div class="eyebrow">Screened</div><div class="num text-xl font-semibold">{{ number_format($d['screeningTotals']['screened']) }}</div></div>
+                <div><div class="eyebrow">Flagged</div><div class="num text-xl font-semibold" style="color: var(--warn)">{{ number_format($d['screeningTotals']['flagged']) }}</div></div>
+                <div><div class="eyebrow">Confirmed duplicates</div><div class="num text-xl font-semibold" style="color: var(--bad)">{{ number_format($d['screeningTotals']['confirmed']) }}</div></div>
             </div>
             <x-chart :option="$d['charts']['screening']" size="short" label="Screening results per month" /></x-panel>
         <x-panel title="Submission compliance per unit"><x-slot:actions><span class="text-muted small">all required files</span></x-slot:actions>
@@ -75,7 +78,7 @@
                 </tbody>
             </table></div></x-panel>
         @if ($full)
-            <x-panel title="Repository usage"><x-slot:actions><span class="text-muted small">last 12 weeks · sample</span></x-slot:actions>
+            <x-panel title="Repository usage"><x-slot:actions><span class="text-muted small">last 12 weeks · searches are university-wide</span></x-slot:actions>
                 <x-chart :option="$d['charts']['usage']" label="Repository usage" /></x-panel>
             <x-panel title="Most accessed studies">
                 <div class="list">@foreach ($d['topAccessed'] as $r)<div class="ph"><a href="{{ route('studies.show', $r['public_id']) }}">{{ $r['title'] }}</a><span class="num small text-muted">{{ number_format($r['views']) }} views</span></div>@endforeach</div></x-panel>
