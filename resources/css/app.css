@@ -22,31 +22,34 @@
 
 /* ---------- Design tokens: light (§15) ---------- */
 :root {
-    --bg: #f3f5f8; --surface: #ffffff; --surface-2: #eef2f7;
-    --ink: #162033; --muted: #5a6579; --line: #dbe1ea;
-    --accent: #1e3a6b; --accent-ink: #ffffff; --accent-soft: #e3eaf6;
+    /* Same family as the landing page (landing.css): cream, deep green, lime. */
+    --bg: #f8f5ec; --surface: #ffffff; --surface-2: #f1f0e6;
+    --ink: #0f2724; --muted: #5c6b66; --line: #e2e5da;
+    --accent: #1b4a42; --accent-ink: #ffffff; --accent-soft: #e7f6ee;
+    --lime: #c9f26b; --lime-ink: #0f2724;
     --gold: #b5862a; --gold-soft: #f6ecd6;
     --ok: #23744a; --ok-soft: #e2f2e8;
     --warn: #a66a10; --warn-soft: #fbefd9;
     --bad: #b0281c; --bad-soft: #fbe4e1;
-    --c1: #1e3a6b; --c2: #b5862a; --c3: #3f8f86; --c4: #a4486a; --c5: #6a5fb0; --c6: #5f8a3a; --c7: #c2622d;
-    --heat0: #eef2f7; --heat1: #1e3a6b;
-    --bar: #1e3a6b; --bar-ink: #ffffff;
+    --c1: #1b4a42; --c2: #b5862a; --c3: #7fae2f; --c4: #a4486a; --c5: #3f6f8f; --c6: #5f8a3a; --c7: #c2622d;
+    --heat0: #f1f0e6; --heat1: #1b4a42;
+    --bar: #1b4a42; --bar-ink: #ffffff;
     color-scheme: light;
 }
 
 /* ---------- Design tokens: dark ---------- */
 :root[data-theme="dark"] {
-    --bg: #0e1420; --surface: #161e2d; --surface-2: #1c2638;
-    --ink: #e5eaf2; --muted: #9aa6ba; --line: #2a3549;
-    --accent: #8eb0ea; --accent-ink: #0e1420; --accent-soft: #1f2d48;
+    --bg: #0b1a17; --surface: #12241f; --surface-2: #183029;
+    --ink: #e6efec; --muted: #9fb5ae; --line: #24403a;
+    --accent: #8fd3bf; --accent-ink: #0b1a17; --accent-soft: #1c3a33;
+    --lime: #c9f26b; --lime-ink: #0f2724;
     --gold: #e0b45a; --gold-soft: #3a2f17;
     --ok: #62c18b; --ok-soft: #173326;
     --warn: #e8a94a; --warn-soft: #3a2b12;
     --bad: #f08a7e; --bad-soft: #3d1c19;
-    --c1: #8eb0ea; --c2: #e0b45a; --c3: #5fc0b4; --c4: #e087aa; --c5: #a99ff0; --c6: #9ccc6e; --c7: #f0975e;
-    --heat0: #1c2638; --heat1: #8eb0ea;
-    --bar: #14213b; --bar-ink: #e5eaf2;
+    --c1: #8fd3bf; --c2: #e0b45a; --c3: #c9f26b; --c4: #e087aa; --c5: #8fb6e0; --c6: #9ccc6e; --c7: #f0975e;
+    --heat0: #183029; --heat1: #8fd3bf;
+    --bar: #0d302b; --bar-ink: #e6efec;
     color-scheme: dark;
 }
 

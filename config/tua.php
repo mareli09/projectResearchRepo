@@ -82,6 +82,8 @@ return [
         'rate_per_minute' => (int) env('LLM_RATE_PER_MINUTE', 60),
         // Read-only list shown in System settings: the only fields ever sent (§10).
         'fields_sent' => ['title', 'abstract', 'keywords', 'cluster_terms'],
+        // Date the Data Privacy Officer approved the LLM service (§10), shown in Services and security.
+        'dpo_approved_on' => env('LLM_DPO_APPROVED_ON'),
     ],
 
     'sms' => [
@@ -91,9 +93,10 @@ return [
 
     // Theme swatches (§9). Navy is the default.
     'theme' => [
-        'default' => '#1e3a6b',
+        // Default = the landing page's deep green, so signed-in pages match the public site.
+        'default' => '#1b4a42',
         'swatches' => [
-            'Navy' => '#1e3a6b', 'Maroon' => '#7a1f2b', 'Forest' => '#1f5f3f', 'Teal' => '#0f5e66',
+            'TUA Green' => '#1b4a42', 'Navy' => '#1e3a6b', 'Maroon' => '#7a1f2b', 'Teal' => '#0f5e66',
             'Violet' => '#4b3a8c', 'Rust' => '#8a3b12', 'Slate' => '#334155', 'Magenta' => '#9c2a6b',
         ],
     ],

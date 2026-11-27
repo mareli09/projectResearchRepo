@@ -16,6 +16,7 @@ Web-Based Research Repository System with Data Analytics and Visualization Using
 - **Sprint 6 (M6 clustering, LLM suggestions):** done. See "Sprint 6" below.
 - **System settings, theme saving, clustering schedule (parts of Sprints 8 and 9):** done. See "Settings, theme and schedule" below.
 - **AI performance (SOP 3) and the landing page CMS:** done. See "AI performance and CMS" below.
+- **System health, Services and security; one green theme for the whole site:** done. See "Health, services and theme" below.
 
 ## Stack
 
@@ -396,3 +397,33 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
   - **Discard changes** drops the draft.
   - **Load default content** puts the defaults into the draft.
 - **Plain text only:** tags are stripped on save and everything is escaped on output.
+
+## Health, services and theme
+
+**System health** (`/admin/health`) shows live figures:
+- **Disk:** disk use, uploaded files and database size.
+- **Memory:** read from `/proc/meminfo` on the Ubuntu server.
+- **Services:** analytics service status and response time, and whether the LLM is on.
+- **Jobs:** the queue length, waiting and failed jobs, and failed emails.
+- **Retry failed jobs** puts failed jobs back on the queue. Each retry is logged.
+
+**Services and security** (`/admin/services`):
+- **Tests:**
+  - **Test connection** for the analytics service.
+  - **Test connection** for the LLM. It sends a fixed sample text, never repository data.
+  - **Send a test email to me.**
+  - Each test is logged as `service`.
+- **Recent calls between components** come from the activity log.
+- **DPO approval:** the date comes from `LLM_DPO_APPROVED_ON` in `.env`.
+
+**Theme:**
+- The signed-in pages use the landing page palette:
+  - deep green accent `#1b4a42` (the new default, "TUA Green")
+  - cream background, green-tinted neutrals and lines
+  - a dark green sidebar
+  - lime for the current page and the menu counts
+- Dark mode uses deep green surfaces.
+- Users can still pick another swatch. Navy is one of them.
+- A migration moves stored landing content from the old navy default to green. A color the URDC chose on purpose is kept.
+- **Unchanged:** gold is still the LLM suggestion color, and the status colors (ok, warn, bad) are fixed.
+- **CLAUDE.md:** this replaces its Navy default (§9, §15) at the developer's request.

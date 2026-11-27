@@ -247,7 +247,7 @@
     /* ---------- Signed-in app shell: full-width dashboard (top bar + full-height sidebar) ---------- */
     .shell { --side-w: 264px; --top-h: 64px; display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-rows: var(--top-h) minmax(0, 1fr); grid-template-areas: "top top" "side main"; min-height: 100vh; min-height: 100dvh; }
     .shell { --side: color-mix(in srgb, var(--bar) 78%, #05070d); --side-ink: #e6eaf3; --side-muted: color-mix(in srgb, var(--side-ink) 60%, transparent); }
-    :root[data-theme="dark"] .shell { --side: #0b111c; }
+    :root[data-theme="dark"] .shell { --side: #081512; }
     .tb { grid-area: top; position: sticky; top: 0; z-index: 30; display: flex; align-items: center; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 1px 8px rgb(16 24 40 / .05); padding-top: env(safe-area-inset-top, 0px); }
     .tb .brand { width: var(--side-w); flex: none; display: flex; align-items: center; gap: 10px; padding: 0 20px; height: var(--top-h); text-decoration: none; color: var(--ink); font-weight: 700; line-height: 1.15; }
     .tb .brand .seal { color: var(--accent); border-color: var(--accent); width: 36px; height: 36px; }
@@ -279,9 +279,9 @@
     .sb a { display: flex; align-items: center; gap: 12px; padding: 0 12px; min-height: 44px; border-radius: 10px; color: var(--side-ink); text-decoration: none; font-size: .92rem; opacity: .86; position: relative; }
     .sb a:hover { background: rgb(255 255 255 / .07); opacity: 1; }
     .sb a[aria-current="page"] { background: rgb(255 255 255 / .12); opacity: 1; font-weight: 600; }
-    .sb a[aria-current="page"]::before { content: ""; position: absolute; left: -14px; top: 10px; bottom: 10px; width: 4px; border-radius: 0 4px 4px 0; background: var(--gold); }
+    .sb a[aria-current="page"]::before { content: ""; position: absolute; left: -14px; top: 10px; bottom: 10px; width: 4px; border-radius: 0 4px 4px 0; background: var(--lime); }
     .sb a .lbl { flex: 1; min-width: 0; }
-    .sb a .cnt { background: var(--gold); color: #1b1406; border-radius: 999px; font-size: .7rem; font-weight: 700; padding: 1px 8px; }
+    .sb a .cnt { background: var(--lime); color: var(--lime-ink); border-radius: 999px; font-size: .7rem; font-weight: 700; padding: 1px 8px; }
     .sb .me { display: flex; align-items: center; gap: 10px; padding: 10px 12px 14px; margin-bottom: 4px; border-bottom: 1px solid rgb(255 255 255 / .08); }
     .sb .me b { display: block; font-size: .88rem; }
     .sb .me span { font-size: .74rem; color: var(--side-muted); }

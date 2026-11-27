@@ -128,7 +128,7 @@ final class SiteContentEditor
         if ($tab === 'brand') {
             $color = strtolower((string) ($input['theme_color'] ?? $c['theme']['color']));
             if (! preg_match('/^#[0-9a-f]{6}$/', $color)) {
-                throw ValidationException::withMessages(['theme_color' => 'Choose a color like #1e3a6b.']);
+                throw ValidationException::withMessages(['theme_color' => 'Choose a color like #1b4a42.']);
             }
             $c['theme']['color'] = $color;
         }

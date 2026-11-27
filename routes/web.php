@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccessRequestController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\Admin\HealthController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\AiPerformanceController;
@@ -167,8 +168,11 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('role:'.User::ROLE_SYSADMIN)->prefix('/admin')->name('admin.')->group(function () {
-        Route::get('/health', [SysadminController::class, 'health'])->name('health');
-        Route::get('/services', [SysadminController::class, 'services'])->name('services');
+        Route::get('/health', [HealthController::class, 'health'])->name('health');
+        Route::post('/jobs/retry', [HealthController::class, 'retryFailed'])->name('jobs.retry');
+        Route::get('/services', [HealthController::class, 'services'])->name('services');
+        Route::post('/services/{service}/test', [HealthController::class, 'test'])->where('service', 'analytics|llm|mail')
+            ->middleware('throttle:10,1')->name('services.test');
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
         Route::post('/settings/{group}', [SettingsController::class, 'update'])->name('settings.update');
         Route::get('/backups', [SysadminController::class, 'backups'])->name('backups');

@@ -125,7 +125,7 @@ document.addEventListener('click', (e) => {
 });
 
 /* ---------------- Theme picker (CLAUDE.md §9) ---------------- */
-const SWATCHES = [['#1e3a6b', 'Navy'], ['#7a1f2b', 'Maroon'], ['#1f5f3f', 'Forest'], ['#0f5e66', 'Teal'], ['#4b3a8c', 'Violet'], ['#8a3b12', 'Rust'], ['#334155', 'Slate'], ['#9c2a6b', 'Magenta']];
+const SWATCHES = [['#1b4a42', 'TUA Green'], ['#1e3a6b', 'Navy'], ['#7a1f2b', 'Maroon'], ['#0f5e66', 'Teal'], ['#4b3a8c', 'Violet'], ['#8a3b12', 'Rust'], ['#334155', 'Slate'], ['#9c2a6b', 'Magenta']];
 
 function themePopHtml() {
     const T = window.tuaTheme;
