@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Domain\Repository\AccessRequests;
 use App\Domain\Search\RecordSearch;
+use App\Domain\Search\UsageLog;
 use App\Domain\Site\Corpus;
 use App\Models\ResearchRecord;
+use App\Models\User;
 use App\Services\AnalyticsClient\AnalyticsClient;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,11 +23,13 @@ class LibraryController extends Controller
     public function search(Request $request): View
     {
         $filters = RecordSearch::filters($request);
+        $results = RecordSearch::run($filters);
+        UsageLog::search($request->user(), $filters, $results->total(), $results->currentPage());
 
         return view('library.search', [
             'public' => false,
             'filters' => $filters,
-            'results' => RecordSearch::run($filters),
+            'results' => $results,
             'facets' => RecordSearch::facets(),
         ]);
     }
@@ -35,10 +40,13 @@ class LibraryController extends Controller
             ->with('authors', 'academicUnit', 'program', 'keywords', 'sdgs', 'currentFiles')->firstOrFail();
         // The download policy reads $file->record; reuse the loaded record instead of querying it again.
         $record->currentFiles->each->setRelation('record', $record);
+        $user = $request->user();
+        UsageLog::view($record, $user);
 
         return view('library.study', [
             'record' => $record,
             'public' => false,
+            'access' => $user->hasRole(User::ROLE_STUDENT) ? AccessRequests::latestFor($user, $record) : null,
             'files' => $record->currentFiles->keyBy('slot'),
             'related' => self::related($record),
             'theme' => Corpus::records()->firstWhere('id', $record->id)['theme'] ?? null,

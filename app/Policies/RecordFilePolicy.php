@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Domain\Repository\AccessRequests;
 use App\Models\RecordFile;
 use App\Models\User;
 
@@ -9,7 +10,7 @@ use App\Models\User;
  * Who may download a stored file (CLAUDE.md §1 rule 9, §4 "Full paper").
  * - URDC administrator: every slot, any status.
  * - Faculty adviser, research coordinator: paper files of published records.
- * - Student: only with an approved full-paper request (Sprint 5).
+ * - Student: the full paper and IMRAD version, with an approved, unexpired full-paper request.
  * - System administrator, guests: no.
  * The signed Transfer of Ownership Agreement is an office record: URDC only.
  */
@@ -35,6 +36,12 @@ class RecordFilePolicy
             return false;
         }
 
-        return $user->hasAnyRole([User::ROLE_ADVISER, User::ROLE_COORDINATOR]);
+        if ($user->hasAnyRole([User::ROLE_ADVISER, User::ROLE_COORDINATOR])) {
+            return true;
+        }
+
+        // Students: the paper files of a record they have an approved, unexpired request for.
+        return $user->hasRole(User::ROLE_STUDENT) && in_array($file->slot, AccessRequests::SLOTS, true)
+            && AccessRequests::hasAccess($user, $record->id);
     }
 }

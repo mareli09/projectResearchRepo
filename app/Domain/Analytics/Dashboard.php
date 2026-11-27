@@ -3,8 +3,8 @@
 namespace App\Domain\Analytics;
 
 use App\Domain\Repository\ResearchTypes;
+use App\Domain\Search\UsageLog;
 use App\Domain\Site\Corpus;
-use App\Domain\Site\DesignData;
 use App\Models\Sdg;
 use Illuminate\Support\Collection;
 
@@ -74,7 +74,7 @@ final class Dashboard
                 return ['college' => $c, 'expected' => $all->count(), 'complete' => $ok, 'rate' => $all->count() ? $ok / $all->count() * 100 : 0];
             })->all(),
             'topAccessed' => $recs->sortByDesc('views')->take(6)->values()->all(),
-            'searchGaps' => DesignData::searchGaps(),
+            'searchGaps' => UsageLog::gaps(),
             'count' => $recs->count(),
         ];
     }

@@ -107,5 +107,6 @@ it('filters search by facets on real records', function () {
 
 it('lets advisers download paper files from the study page but not students', function () {
     $this->actingAs(demo(User::ROLE_ADVISER))->get('/studies/TUA-2023-1420')->assertSee('Download');
-    $this->actingAs(demo(User::ROLE_STUDENT))->get('/studies/TUA-2023-1420')->assertSee('Request access')->assertDontSee('>Download<', false);
+    $this->actingAs(demo(User::ROLE_STUDENT))->get('/studies/TUA-2023-1420')->assertSee('Request pending')->assertSee('AR-031')->assertDontSee('>Download<', false);
+    $this->actingAs(demo(User::ROLE_STUDENT))->get('/studies/TUA-2022-1421')->assertSee('Request access')->assertSee('Send request');
 });

@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Design;
 
 use App\Domain\Analytics\Dashboard;
-use App\Domain\Site\DesignData;
 use App\Domain\Submissions\SubmissionPresenter;
 use App\Domain\Submissions\Workflow;
 use App\Http\Controllers\Controller;
 use App\Models\ResearchCluster;
 use App\Models\ResearchRecord;
 use App\Models\Submission;
+use App\Support\Navigation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,7 +33,7 @@ class CoordinatorController extends Controller
             'kpis' => [
                 ['Endorsed, waiting for review', $queue->count(), 'inbox', 'gold'],
                 ['Flagged by screening', $queue->whereIn('flag', ['similar', 'probable_duplicate'])->count(), 'compare', 'warn'],
-                ['Theme labels to confirm', collect(DesignData::labels())->where('confirmed', false)->count(), 'tag', 'accent'],
+                ['Theme labels to confirm', (int) Navigation::pendingLabels(), 'tag', 'accent'],
             ],
         ]);
     }

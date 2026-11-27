@@ -79,10 +79,10 @@
                 <x-chart :option="$d['charts']['usage']" label="Repository usage" /></x-panel>
             <x-panel title="Most accessed studies">
                 <div class="list">@foreach ($d['topAccessed'] as $r)<div class="ph"><a href="{{ route('studies.show', $r['public_id']) }}">{{ $r['title'] }}</a><span class="num small text-muted">{{ number_format($r['views']) }} views</span></div>@endforeach</div></x-panel>
-            <x-panel title="Searches with no or few results" class="span2"><x-slot:actions><span class="text-muted small">possible gaps in the collection · sample until Sprint 5</span></x-slot:actions>
+            <x-panel title="Searches with no or few results" class="span2"><x-slot:actions><span class="text-muted small">possible gaps in the collection · last 90 days</span></x-slot:actions>
                 <div class="tbl"><table>
                     <thead><tr><th>Search term</th><th class="r">Times searched</th><th class="r">Results</th><th>Last searched</th></tr></thead>
-                    <tbody>@foreach ($d['searchGaps'] as $g)<tr><td>{{ $g[0] }}</td><td class="r num">{{ $g[1] }}</td><td class="r num">@if ($g[2] === 0)<x-pill variant="bad">0</x-pill>@else{{ $g[2] }}@endif</td><td>{{ $g[3] }}, 2026</td></tr>@endforeach</tbody>
+                    <tbody>@forelse ($d['searchGaps'] as $g)<tr><td>{{ $g[0] }}</td><td class="r num">{{ $g[1] }}</td><td class="r num">@if ($g[2] === 0)<x-pill variant="bad">0</x-pill>@else{{ $g[2] }}@endif</td><td>{{ $g[3] }}</td></tr>@empty<tr><td colspan="4" class="text-muted">No searches with few results yet.</td></tr>@endforelse</tbody>
                 </table></div></x-panel>
         @endif
     </div>

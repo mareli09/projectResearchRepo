@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Analytics\Dashboard;
 use App\Domain\Search\RecordSearch;
+use App\Domain\Search\UsageLog;
 use App\Domain\Site\Corpus;
 use App\Domain\Site\SiteContent;
 use App\Models\AcademicUnit;
@@ -48,24 +49,28 @@ class SiteController extends Controller
     public function catalog(Request $request): View
     {
         $filters = RecordSearch::filters($request);
+        $results = RecordSearch::run($filters);
+        UsageLog::search($request->user(), $filters, $results->total(), $results->currentPage());
 
         return view('library.search', [
             'public' => true,
             'filters' => $filters,
-            'results' => RecordSearch::run($filters),
+            'results' => $results,
             'facets' => RecordSearch::facets(),
         ]);
     }
 
     /** Guests see the title, abstract and metadata only. No files (§4). */
-    public function catalogShow(string $publicId): View
+    public function catalogShow(Request $request, string $publicId): View
     {
         $record = ResearchRecord::published()->where('public_id', $publicId)
             ->with('authors', 'academicUnit', 'program', 'keywords', 'sdgs')->firstOrFail();
+        UsageLog::view($record, $request->user());
 
         return view('library.study', [
             'record' => $record,
             'public' => true,
+            'access' => null,
             'files' => collect(),
             'related' => LibraryController::related($record),
             'theme' => Corpus::records()->firstWhere('id', $record->id)['theme'] ?? null,

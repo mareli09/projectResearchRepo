@@ -46,8 +46,8 @@
                                                 <x-button :href="route('login')" size="sm">Sign in</x-button>
                                             @elseif ($f && $me?->can('download', $f))
                                                 <x-button :href="\App\Http\Controllers\RecordFileController::signedUrl($f)" size="sm">Download</x-button>
-                                            @elseif ($isStudent && $slot === 'full_paper')
-                                                <x-button size="sm" preview="Sprint 5" data-preview-what="Request access">Request access</x-button>
+                                            @elseif ($isStudent && $f && in_array($slot, \App\Domain\Repository\AccessRequests::SLOTS, true))
+                                                <a href="#request-access" class="small">{{ $access?->status === 'pending' ? 'Request pending' : 'Request access' }}</a>
                                             @elseif (! $f)
                                                 <span class="text-muted small">Not uploaded</span>
                                             @else
@@ -59,11 +59,33 @@
                             </tbody>
                         </table>
                     </div>
-                    @if ($isStudent)<p class="small text-muted mt-2">Abstracts are open to all signed-in users. Full papers are released to students when the URDC approves an access request.</p>@endif
+                    @if ($isStudent)
+                        <div id="request-access" class="mt-3">
+                            @if ($access?->status === 'pending')
+                                <x-callout>Your request <span class="mono">{{ $access->public_id }}</span> is waiting for the URDC. You get an email when it is decided.</x-callout>
+                            @elseif ($access?->status === 'approved' && ($access->expires_at === null || $access->expires_at->isFuture()))
+                                <x-callout variant="ok">Request <span class="mono">{{ $access->public_id }}</span> approved. You can download the full paper until {{ $access->expires_at?->format('F j, Y') }}. Downloads are logged.</x-callout>
+                            @else
+                                @if ($access?->status === 'declined')
+                                    <x-callout variant="bad" class="mb-3">Request <span class="mono">{{ $access->public_id }}</span> was declined. Reason: {{ $access->reason }}</x-callout>
+                                @elseif ($access?->status === 'approved')
+                                    <x-callout class="mb-3">Your access from request <span class="mono">{{ $access->public_id }}</span> ended on {{ $access->expires_at?->format('F j, Y') }}.</x-callout>
+                                @endif
+                                <form method="POST" action="{{ route('studies.request', $record->public_id) }}" class="flex flex-col gap-2" novalidate>
+                                    @csrf
+                                    <label for="purpose" class="font-medium">Request the full paper</label>
+                                    <p class="small text-muted" id="purpose-hint">Say what you need it for, for example a related-literature review for your own thesis. The URDC approves requests following University policy.</p>
+                                    <textarea id="purpose" name="purpose" rows="3" aria-describedby="purpose-hint" class="w-full rounded-md border border-line bg-surface px-3 py-2">{{ old('purpose') }}</textarea>
+                                    <x-form-error name="purpose" />
+                                    <div><x-button type="submit" variant="primary">Send request</x-button></div>
+                                </form>
+                            @endif
+                        </div>
+                    @endif
                 </x-panel>
 
                 <x-panel title="Related studies">
-                    <x-slot:actions><span class="text-muted small">Shared keywords for now · TF-IDF cosine similarity in Sprint 4</span></x-slot:actions>
+                    <x-slot:actions><span class="text-muted small">TF-IDF cosine similarity · shared keywords if the analytics service is down</span></x-slot:actions>
                     <div class="list">
                         @forelse ($related as $x)
                             <div>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccessRequestController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\Admin\UserController;
@@ -116,6 +117,8 @@ Route::middleware('auth')->group(function () {
     */
     Route::get('/search', [LibraryController::class, 'search'])->name('search');
     Route::get('/studies/{publicId}', [LibraryController::class, 'study'])->name('studies.show');
+    Route::post('/studies/{publicId}/request', [AccessRequestController::class, 'store'])
+        ->middleware(['role:'.User::ROLE_STUDENT, 'throttle:10,1'])->name('studies.request');
     Route::get('/notifications', [LibraryController::class, 'notifications'])->name('notifications');
     Route::post('/notifications/read', [LibraryController::class, 'markAllRead'])->name('notifications.read');
 
@@ -149,7 +152,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/analytics', [UrdcController::class, 'analytics'])->name('analytics');
         Route::get('/approvals', [UrdcController::class, 'approvals'])->name('approvals');
         Route::post('/approvals', [UrdcController::class, 'decide'])->name('decide');
-        Route::get('/requests', [UrdcController::class, 'requests'])->name('requests');
+        Route::get('/requests', [AccessRequestController::class, 'index'])->name('requests');
+        Route::post('/requests/{accessRequest}', [AccessRequestController::class, 'decide'])->name('requests.decide');
         // M6 Thematic clustering (live from Sprint 6): the run is a queue job, never part of the request.
         Route::get('/clustering', [ClusteringController::class, 'index'])->name('clustering');
         Route::post('/clustering', [ClusteringController::class, 'run'])->middleware('throttle:6,1')->name('clustering.run');

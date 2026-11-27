@@ -8,7 +8,6 @@ use App\Domain\Submissions\SubmissionPresenter;
 use App\Domain\Submissions\Workflow;
 use App\Http\Controllers\Controller;
 use App\Models\RecordFile;
-use App\Models\ResearchRecord;
 use App\Models\Submission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,13 +64,6 @@ class UrdcController extends Controller
         $msg = ['approve' => 'Approved and published. It is now in the catalog.', 'return' => 'Returned to the student.', 'reject' => 'Rejected. The student was notified.'][$data['decision']];
 
         return redirect()->route('urdc.approvals')->with('status', "{$sub->public_id}: {$msg}");
-    }
-
-    public function requests(): View
-    {
-        $titles = ResearchRecord::whereIn('public_id', collect(DesignData::accessRequests())->pluck('rec'))->pluck('title', 'public_id');
-
-        return view('urdc.requests', ['requests' => DesignData::accessRequests(), 'titles' => $titles]);
     }
 
     public function ai(): View

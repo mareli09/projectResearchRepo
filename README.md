@@ -12,7 +12,8 @@ Web-Based Research Repository System with Data Analytics and Visualization Using
 - **Sprint 2 (M2 repository and metadata):** done. See "Sprint 2" below.
 - **Sprint 3 (M3 submission and approval workflow):** done, except draft saving. See "Sprint 3" below.
 - **Sprint 4 (Python service, M5 similarity screening):** done. See "Sprint 4" below.
-- **Sprint 6 (M6 clustering, LLM suggestions):** done. See "Sprint 6" below. Sprint 5 (full-paper requests, search logging) is next.
+- **Sprint 5 (M4 full-paper requests, search and view logging):** done. See "Sprint 5" below.
+- **Sprint 6 (M6 clustering, LLM suggestions):** done. See "Sprint 6" below.
 
 ## Stack
 
@@ -327,3 +328,20 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
 - **Provider:** `app/Services/LlmClient/OpenAiLlmClient.php`, behind the `LlmClient` interface.
   - Timeout 8 s and a limit of 60 calls a minute.
   - The System administrator's "LLM on or off" setting switches it off.
+
+## Sprint 5: full-paper requests and usage logging (M4)
+
+**Full-paper requests:**
+- **Student:** on a study page, a student writes the purpose and sends a request.
+  - Only one request per paper can be open at a time.
+  - The URDC gets an email and an in-app notice.
+- **URDC** (`/urdc/requests`, filter by status):
+  - **Approve** with an access-until date (default 14 days, at most a year).
+  - **Decline** with a reason. The student sees the reason on the study page and can ask again.
+  - The student is emailed either way. Each step is written to the activity log as `request`.
+- **Downloads:** with an approved, unexpired request, `RecordFilePolicy` lets the student download that record's full paper and IMRAD version through the signed, logged link. Access ends on the expiry date. The Transfer of Ownership stays with the URDC.
+
+**Usage logging:**
+- **Searches:** every search in the catalog and in Search is written to `search_logs`, including searches with no results. A search is a query or a facet on the first page. Signed-in searches are also written to the activity log as `search`.
+- **"Searches with no or few results"** (Table 7 visual 13) now reads `search_logs`: terms with 3 or fewer results in the last 90 days, most searched first.
+- **Views:** every study view (guest or signed in) adds to the record's view count and writes a `view` entry.
