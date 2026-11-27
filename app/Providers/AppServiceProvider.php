@@ -4,11 +4,13 @@ namespace App\Providers;
 
 use App\Domain\Audit\Listeners\LogAuthEvents;
 use App\Domain\Audit\Listeners\LogSentMail;
+use App\Models\Setting;
 use App\Models\User;
 use App\Services\AnalyticsClient\AnalyticsClient;
 use App\Services\AnalyticsClient\HttpAnalyticsClient;
 use App\Services\LlmClient\LlmClient;
 use App\Services\LlmClient\NullLlmClient;
+use App\Services\LlmClient\OpenAiLlmClient;
 use App\Services\SmsClient\NullSmsClient;
 use App\Services\SmsClient\SmsClient;
 use Illuminate\Auth\Events\Failed;
@@ -36,8 +38,21 @@ class AppServiceProvider extends ServiceProvider
             retries: (int) config('tua.analytics_service.retries'),
         ));
 
-        // Real providers are added once the LLM provider, DPO approval and SMS gateway are confirmed (§20 items 5–6).
-        $this->app->singleton(LlmClient::class, NullLlmClient::class);
+        // LLM provider (§10): OpenAI when LLM_ENABLED=true, a key is set and the administrator has not
+        // switched suggestions off in Settings. Otherwise the null client, so the TF-IDF fallback is used.
+        $this->app->singleton(LlmClient::class, function () {
+            $allowed = (bool) Setting::valueOf('llm.enabled', true);
+            if (config('tua.llm.enabled') && $allowed && filled(config('tua.llm.api_key')) && in_array(config('tua.llm.provider') ?: 'openai', ['openai'], true)) {
+                return new OpenAiLlmClient(
+                    apiKey: (string) config('tua.llm.api_key'),
+                    model: (string) (config('tua.llm.model') ?: 'gpt-4o-mini'),
+                    timeout: (int) config('tua.llm.timeout'),
+                    ratePerMinute: (int) config('tua.llm.rate_per_minute'),
+                );
+            }
+
+            return new NullLlmClient;
+        });
         $this->app->singleton(SmsClient::class, NullSmsClient::class);
     }
 

@@ -67,6 +67,9 @@ class FortifyServiceProvider extends ServiceProvider
         // Sign-in throttling: Fortify's LoginRateLimiter (5 failed attempts per email and IP, 1-minute pause),
         // see config/fortify.php 'limiters.login' => null.
 
+        // LLM suggestions: per user (the provider also has a global limit, §10).
+        RateLimiter::for('llm', fn (Request $request) => Limit::perMinute(10)->by((string) ($request->user() === null ? $request->ip() : $request->user()->id)));
+
         // Recovery: code requests and code checks per email and IP.
         RateLimiter::for('recovery', function (Request $request) {
             $email = Str::lower((string) ($request->input('email') ?? $request->session()->get('recovery.email')));

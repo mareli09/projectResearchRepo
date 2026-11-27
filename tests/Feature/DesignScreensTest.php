@@ -90,8 +90,9 @@ it('keeps signed-in pages away from guests', function (string $url) {
 it('marks actions that are not built yet as design previews', function () {
     $this->actingAs(demo(User::ROLE_STUDENT))->get('/student/submit')
         ->assertSee('Submit for adviser endorsement')
-        ->assertSee('data-preview="Sprint 6"', false)
+        ->assertDontSee('data-preview="Sprint 6"', false)
         ->assertSee('LLM suggestion');
+    $this->actingAs(demo(User::ROLE_SYSADMIN))->get('/admin/settings')->assertSee('data-preview="Sprint 9"', false);
 });
 
 it('filters search by facets on real records', function () {

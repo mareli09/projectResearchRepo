@@ -20,7 +20,8 @@ class SettingsSeeder extends Seeder
             'repository.abstract_word_limit' => config('tua.repository.abstract_word_limit'),
             'session.idle_minutes' => (int) config('session.lifetime'),
             'auth.login_max_attempts' => config('tua.auth.login_max_attempts'),
-            'llm.enabled' => config('tua.llm.enabled'),
+            // Administrator switch (System settings). The provider is used only when LLM_ENABLED=true in .env as well.
+            'llm.enabled' => true,
             'llm.timeout' => config('tua.llm.timeout'),
             'llm.rate_per_minute' => config('tua.llm.rate_per_minute'),
             'recovery.channels' => [

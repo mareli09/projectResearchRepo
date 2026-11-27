@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Design;
 
 use App\Domain\Analytics\Dashboard;
-use App\Domain\Site\Corpus;
 use App\Domain\Site\DesignData;
 use App\Domain\Submissions\SubmissionPresenter;
 use App\Domain\Submissions\Workflow;
@@ -73,24 +72,6 @@ class UrdcController extends Controller
         $titles = ResearchRecord::whereIn('public_id', collect(DesignData::accessRequests())->pluck('rec'))->pluck('title', 'public_id');
 
         return view('urdc.requests', ['requests' => DesignData::accessRequests(), 'titles' => $titles]);
-    }
-
-    public function clustering(): View
-    {
-        $ks = range(2, 15);
-        $inertia = array_map(fn ($k) => (int) round(1380 * exp(-.23 * ($k - 2)) + 520 - $k * 6), $ks);
-        $sil = array_map(fn ($k) => round(0.184 - abs($k - 7) * 0.012 - ($k > 7 ? 0.004 * ($k - 7) : 0) + (($k * 37) % 5) * 0.001, 3), $ks);
-
-        return view('urdc.clustering', [
-            'runs' => DesignData::runs(),
-            'labels' => DesignData::labels(),
-            'counts' => Corpus::records()->countBy('theme'),
-            'elbow' => ['tooltip' => ['trigger' => 'axis'], 'xAxis' => ['type' => 'category', 'name' => 'k', 'data' => $ks], 'yAxis' => ['type' => 'value', 'name' => 'Inertia'],
-                'series' => [['type' => 'line', 'data' => $inertia, 'symbolSize' => 6, 'itemStyle' => ['color' => 'var(--c1)'],
-                    'markPoint' => ['symbol' => 'circle', 'symbolSize' => 12, 'data' => [['coord' => ['7', $inertia[5]], 'itemStyle' => ['color' => 'var(--c2)']]]]]]],
-            'silhouette' => ['tooltip' => ['trigger' => 'axis'], 'xAxis' => ['type' => 'category', 'name' => 'k', 'data' => $ks], 'yAxis' => ['type' => 'value', 'min' => .05],
-                'series' => [['type' => 'bar', 'barMaxWidth' => 18, 'data' => array_map(fn ($k, $v) => ['value' => $v, 'itemStyle' => ['color' => $k === 7 ? 'var(--c2)' : 'var(--c1)']], $ks, $sil)]]],
-        ]);
     }
 
     public function ai(): View

@@ -1,10 +1,9 @@
-{{-- "Submit a study" (CLAUDE.md §7 M2, M3). LLM suggestions (§10) arrive in Sprint 6. --}}
+{{-- "Submit a study" (CLAUDE.md §7 M2, M3) with LLM metadata suggestions (§10). --}}
 @php
     use App\Domain\Repository\ResearchTypes;
     $u = auth()->user();
     $in = 'w-full min-h-11 rounded-md border bg-surface px-3';
     $err = fn ($k) => $errors->has($k) ? 'border-bad' : 'border-line';
-    $state = ['accepted' => 'Accepted', 'edited' => 'Edited', 'rejected' => 'Removed'];
     $oldSdgs = array_map('intval', (array) old('sdgs', []));
 @endphp
 <x-layouts.app title="Submit a study">
@@ -15,8 +14,10 @@
     @endif
 
     <form method="POST" action="{{ route('student.store') }}" enctype="multipart/form-data" class="stack" novalidate
-          x-data="{ w: 0, imradNa: @js((bool) old('imrad_not_applicable')) }">
+          x-data="Object.assign(tuaSuggest({ url: @js(route('student.suggest')), csrf: @js(csrf_token()), keywords: @js((string) old('keywords')), sdgs: @js($oldSdgs), type: @js((string) old('research_type')), sdgNames: @js($sdgs->pluck('name', 'id')), types: @js(ResearchTypes::TYPES) }), { w: 0, imradNa: @js((bool) old('imrad_not_applicable')) })">
         @csrf
+        <input type="hidden" name="llm_log" :value="log()">
+        <input type="hidden" name="llm_meta" :value="meta()">
         <x-panel title="Study details">
             <div class="form-grid">
                 <div class="full flex flex-col gap-1"><label for="sb-title" class="font-medium">Title *</label>
@@ -26,7 +27,7 @@
                     <textarea id="sb-abs" name="abstract" x-ref="a" rows="6" required class="w-full rounded-md border bg-surface px-3 py-2 {{ $err('abstract') }}" @input="w = ($el.value.trim().match(/\S+/g) || []).length">{{ old('abstract') }}</textarea>
                     <x-form-error name="abstract" /></div>
                 <div class="flex flex-col gap-1"><label for="sb-type" class="font-medium">Research type *</label>
-                    <select id="sb-type" name="research_type" class="{{ $in }} {{ $err('research_type') }}"><option value="">Choose…</option>
+                    <select id="sb-type" name="research_type" x-model="type" class="{{ $in }} {{ $err('research_type') }}"><option value="">Choose…</option>
                         @foreach (array_slice(ResearchTypes::TYPES, 0, 3, true) as $k => $l)<option value="{{ $k }}" @selected(old('research_type') === $k)>{{ $l }}</option>@endforeach</select>
                     <x-form-error name="research_type" /></div>
                 <div class="flex flex-col gap-1"><label for="sb-prog" class="font-medium">Program *</label>
@@ -48,26 +49,65 @@
         <x-panel title="Suggested metadata">
             <x-slot:actions><span class="ai-tag">LLM suggestion</span></x-slot:actions>
             <p class="small text-muted mb-2.5">Get suggested keywords, SDG tags and research type from your title and abstract. Only the title and abstract are sent, never your files or personal details. Nothing is added until you accept it.</p>
-            <x-button preview="Sprint 6" style="border-color: var(--gold)">✦ Suggest from title and abstract</x-button>
-            <x-llm-suggestion class="mt-3">
-                <p class="small text-muted">Example of how suggestions will look (Sprint 6).</p>
-                <div class="chips">
-                    @foreach ($suggestion['keywords'] as $k)
-                        <span class="sug {{ $k['s'] }}">{{ $k['e'] ?? $k['v'] }}
-                            @if (isset($state[$k['s']]))<span class="text-muted small">· {{ $state[$k['s']] }}</span>@else<x-button size="sm" variant="ok" preview="Sprint 6">Accept</x-button><x-button size="sm" preview="Sprint 6">Edit</x-button><x-button size="sm" preview="Sprint 6" aria-label="Remove">✕</x-button>@endif
-                        </span>
-                    @endforeach
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="btn" style="border-color: var(--gold)" @click="suggest()" :disabled="loading">
+                    <span x-show="!loading">✦ Suggest from title and abstract</span><span x-show="loading" x-cloak>Asking for suggestions…</span>
+                </button>
+                <span class="field-error" x-show="error" x-text="error" role="alert"></span>
+            </div>
+            <template x-if="sug">
+                <div class="ai-box mt-3" aria-live="polite">
+                    <x-callout x-show="sug.source === 'fallback'" class="small">The LLM service is unavailable right now, so these are the top TF-IDF terms of your title and abstract. Everything else keeps working.</x-callout>
+                    <div><div class="eyebrow mb-1.5">Keywords</div>
+                        <div class="chips">
+                            <template x-for="k in sug.kw" :key="k.v">
+                                <span class="sug" :class="k.s === 'editing' ? 'edited' : k.s">
+                                    <template x-if="k.s === 'editing'">
+                                        <span class="flex gap-1 items-center"><label class="sr-only" :for="'ed-' + k.v">Edit keyword</label>
+                                            <input :id="'ed-' + k.v" x-model="k.e" class="min-h-8 rounded border border-line bg-surface px-2 text-[13px] w-40" @keydown.enter.prevent="act('kw', k, 'save')">
+                                            <button type="button" class="btn btn-sm" @click="act('kw', k, 'save')">Save</button></span>
+                                    </template>
+                                    <template x-if="k.s !== 'editing'">
+                                        <span class="flex gap-1 items-center">
+                                            <span x-text="k.s === 'edited' ? k.e : k.v"></span>
+                                            <template x-if="k.s === 'pending'"><span class="flex gap-1">
+                                                <button type="button" class="btn btn-sm btn-ok" @click="act('kw', k, 'accept')">Accept</button>
+                                                <button type="button" class="btn btn-sm" @click="act('kw', k, 'edit')">Edit</button>
+                                                <button type="button" class="btn btn-sm" @click="act('kw', k, 'reject')" :aria-label="'Remove ' + k.v">✕</button></span></template>
+                                            <template x-if="k.s !== 'pending'"><span class="flex gap-1 items-center"><span class="text-muted small" x-text="'· ' + ({accepted: 'Accepted', edited: 'Edited', rejected: 'Removed'})[k.s]"></span>
+                                                <button type="button" class="btn btn-sm" @click="act('kw', k, 'undo')">Undo</button></span></template>
+                                        </span>
+                                    </template>
+                                </span>
+                            </template>
+                        </div></div>
+                    <div x-show="sug.sdg.length"><div class="eyebrow mb-1.5">SDG tags</div>
+                        <div class="chips">
+                            <template x-for="s in sug.sdg" :key="s.v">
+                                <span class="sug" :class="s.s"><span x-text="'SDG ' + s.v + ' · ' + s.name"></span>
+                                    <template x-if="s.s === 'pending'"><span class="flex gap-1"><button type="button" class="btn btn-sm btn-ok" @click="act('sdg', s, 'accept')">Accept</button><button type="button" class="btn btn-sm" @click="act('sdg', s, 'reject')">✕</button></span></template>
+                                    <template x-if="s.s !== 'pending'"><button type="button" class="btn btn-sm" @click="act('sdg', s, 'undo')">Undo</button></template>
+                                </span>
+                            </template>
+                        </div></div>
+                    <div x-show="sug.type"><div class="eyebrow mb-1.5">Research type</div>
+                        <template x-if="sug.type"><span class="sug" :class="sug.type.s"><span x-text="sug.type.label"></span>
+                            <template x-if="sug.type.s === 'pending'"><span class="flex gap-1"><button type="button" class="btn btn-sm btn-ok" @click="act('type', sug.type, 'accept')">Accept</button><button type="button" class="btn btn-sm" @click="act('type', sug.type, 'reject')">✕</button></span></template>
+                            <template x-if="sug.type.s !== 'pending'"><button type="button" class="btn btn-sm" @click="act('type', sug.type, 'undo')">Undo</button></template>
+                        </span></template></div>
+                    <p class="small text-muted">Each choice is saved to the activity log when you submit. The rule of 3 to 5 keywords still applies.</p>
                 </div>
-            </x-llm-suggestion>
+            </template>
         </x-panel>
 
         <x-panel title="Keywords and SDGs">
             <div class="flex flex-col gap-1"><label for="sb-kw" class="font-medium">Keywords * (3 to 5, separated by commas)</label>
-                <input id="sb-kw" name="keywords" value="{{ old('keywords') }}" placeholder="tf-idf, cosine similarity, title screening" class="{{ $in }} {{ $err('keywords') }}">
+                <input id="sb-kw" name="keywords" x-model="kwText" placeholder="tf-idf, cosine similarity, title screening" class="{{ $in }} {{ $err('keywords') }}">
+                <span class="small" :class="keywords().length < 3 || keywords().length > 5 ? 'text-bad' : 'text-muted'" x-text="keywords().length + ' of 3–5 keywords'"></span>
                 <x-form-error name="keywords" /></div>
             <fieldset class="mt-3.5">
                 <legend class="eyebrow mb-1.5">Sustainable Development Goals</legend>
-                <div class="chips">@foreach ($sdgs as $s)<label class="chip cursor-pointer min-h-9"><input type="checkbox" name="sdgs[]" value="{{ $s->id }}" @checked(in_array($s->id, $oldSdgs, true))> SDG {{ $s->id }} · {{ $s->name }}</label>@endforeach</div>
+                <div class="chips">@foreach ($sdgs as $s)<label class="chip cursor-pointer min-h-9"><input type="checkbox" name="sdgs[]" value="{{ $s->id }}" x-model="sdgSel"> SDG {{ $s->id }} · {{ $s->name }}</label>@endforeach</div>
                 <x-form-error name="sdgs" />
             </fieldset>
         </x-panel>

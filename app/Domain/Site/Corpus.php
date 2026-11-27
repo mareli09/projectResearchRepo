@@ -2,10 +2,14 @@
 
 namespace App\Domain\Site;
 
+use App\Domain\Llm\Suggestions;
 use App\Domain\Repository\ResearchTypes;
+use App\Models\Cluster;
+use App\Models\ClusterRun;
 use App\Models\ResearchRecord;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Read-only view of the published records for the design screens and dashboards.
@@ -28,18 +32,42 @@ final class Corpus
         7 => ['label' => 'Laboratory diagnostics and public health', 'llm' => 'Laboratory diagnostics and public health', 'terms' => ['laboratory', 'specimen', 'diagnostic', 'bacterial', 'screening', 'antibacterial', 'water', 'parasites', 'glucose', 'antibiotic'], 'center' => [-3, -8]],
     ];
 
+    /** The confirmed clustering run whose themes are used everywhere (search, theme map, dashboards). */
+    public static function currentRun(): ?ClusterRun
+    {
+        return once(fn () => ClusterRun::with('clusters')->where('state', 'current')->latest('id')->first());
+    }
+
     /** @return Collection<int, array<string, mixed>> */
     public static function records(): Collection
     {
-        $rows = Cache::remember('design.corpus.v1.'.ResearchRecord::published()->max('updated_at'), 600, /** @return list<array<string, mixed>> */ function (): array {
+        $run = self::currentRun();
+        $key = 'corpus.v2.'.ResearchRecord::published()->max('updated_at').'.'.($run === null ? 'design' : $run->id).'.'.ResearchRecord::published()->count();
+
+        $rows = Cache::remember($key, 600, /** @return list<array<string, mixed>> */ function () use ($run): array {
+            // Theme and 2-D position from the current run (record_cluster), else the design themes.
+            $assigned = $run
+                ? DB::table('record_cluster')->join('clusters', 'clusters.id', '=', 'record_cluster.cluster_id')
+                    ->where('clusters.cluster_run_id', $run->id)
+                    ->get(['record_cluster.record_id', 'clusters.number', 'record_cluster.x', 'record_cluster.y'])->keyBy('record_id')
+                : collect();
+
             return ResearchRecord::published()
                 ->with(['academicUnit:id,code', 'program:id,name', 'keywords:id,term', 'sdgs:id'])
                 ->get()
-                ->map(function (ResearchRecord $r): array {
+                ->map(function (ResearchRecord $r) use ($assigned, $run): array {
                     $keywords = $r->keywords->pluck('term')->all();
-                    $theme = self::themeFor($keywords, $r->academicUnit->code);
-                    $seed = crc32($r->public_id);
-                    $jit = fn (int $shift): float => ((($seed >> $shift) & 0xFF) / 255 + (($seed >> ($shift + 8)) & 0xFF) / 255 - 1) * 3.2;
+                    $a = $assigned->get($r->id);
+                    if ($a !== null) {
+                        [$theme, $x, $y] = [(int) $a->number, (float) $a->x, (float) $a->y];
+                    } else {
+                        // Not in the current run yet (published after it) or no run: nearest design theme.
+                        $theme = $run ? 0 : self::themeFor($keywords, $r->academicUnit->code);
+                        $seed = crc32($r->public_id);
+                        $jit = fn (int $shift): float => ((($seed >> $shift) & 0xFF) / 255 + (($seed >> ($shift + 8)) & 0xFF) / 255 - 1) * 3.2;
+                        $center = self::THEMES[$theme]['center'] ?? [0, 0];
+                        [$x, $y] = [round($center[0] + $jit(0), 2), round($center[1] + $jit(16), 2)];
+                    }
 
                     return [
                         'id' => $r->id, 'public_id' => $r->public_id, 'title' => $r->title, 'year' => $r->year,
@@ -47,9 +75,7 @@ final class Corpus
                         'college' => $r->academicUnit->code, 'program' => $r->program?->name, 'adviser' => $r->adviser_name,
                         'keywords' => $keywords, 'sdgs' => $r->sdgs->pluck('id')->all(),
                         'views' => $r->views, 'downloads' => $r->downloads, 'complete' => $r->is_complete,
-                        'theme' => $theme,
-                        'x' => round(self::THEMES[$theme]['center'][0] + $jit(0), 2),
-                        'y' => round(self::THEMES[$theme]['center'][1] + $jit(16), 2),
+                        'theme' => $theme, 'x' => $x, 'y' => $y,
                     ];
                 })->all();
         });
@@ -75,9 +101,14 @@ final class Corpus
         };
     }
 
-    /** @return array<int, string> */
+    /** @return array<int, string> theme number => label (current run's confirmed or suggested labels) */
     public static function themeLabels(): array
     {
-        return array_map(fn (array $t) => $t['label'], self::THEMES);
+        $run = self::currentRun();
+        if ($run === null) {
+            return array_map(fn (array $t) => $t['label'], self::THEMES);
+        }
+
+        return $run->clusters->mapWithKeys(fn (Cluster $c) => [$c->number => $c->label ?: Suggestions::termsLabel($c->top_terms)])->all();
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Design;
 
 use App\Domain\Analytics\Dashboard;
+use App\Domain\Llm\Suggestions;
 use App\Domain\Repository\FileSlots;
 use App\Domain\Repository\RepositorySettings;
 use App\Domain\Site\Corpus;
@@ -17,6 +18,7 @@ use App\Models\Sdg;
 use App\Models\Submission;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -67,8 +69,26 @@ class StudentController extends Controller
         $uploads = array_filter((array) $request->file('files', []), fn ($f, $slot) => array_key_exists($slot, FileSlots::slots()), ARRAY_FILTER_USE_BOTH);
         $sub = $workflow->submit($request->user(), $data, $uploads);
 
+        // What the student did with each LLM suggestion (§10 "Logging").
+        $log = json_decode((string) $request->input('llm_log', '[]'), true);
+        $meta = json_decode((string) $request->input('llm_meta', '{}'), true);
+        if (is_array($log) && $log !== []) {
+            Suggestions::record($sub, $request->user(), array_slice($log, 0, 20), is_array($meta) ? $meta : []);
+        }
+
         return redirect()->route('student.status', ['id' => $sub->public_id])
             ->with('status', "Submitted as {$sub->public_id}. Your adviser was notified by email.");
+    }
+
+    /** LLM metadata suggestions for the submit form (JSON). Only the title and abstract are sent (§10). */
+    public function suggest(Request $request, Suggestions $suggestions): JsonResponse
+    {
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:500'],
+            'abstract' => ['required', 'string', 'max:5000'],
+        ]);
+
+        return response()->json($suggestions->metadata($data['title'], $data['abstract']));
     }
 
     public function status(Request $request): View

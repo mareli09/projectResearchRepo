@@ -40,6 +40,72 @@ document.addEventListener('click', (e) => {
     }
 });
 
+/* ---------------- LLM metadata suggestions on "Submit a study" (CLAUDE.md §10) ----------------
+ * Suggestions are only suggestions: each item needs Accept, Edit or Remove, and nothing is added
+ * without a click. The choices travel with the form (llm_log) and are saved to llm_suggestions.
+ */
+window.tuaSuggest = (opts) => ({
+    loading: false,
+    error: '',
+    sug: null,
+    kwText: opts.keywords || '',
+    sdgSel: (opts.sdgs || []).map(String),
+    type: opts.type || '',
+    keywords() { return this.kwText.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean); },
+    setKeywords(list) { this.kwText = [...new Set(list)].join(', '); },
+    async suggest() {
+        const title = document.getElementById('sb-title')?.value.trim() || '';
+        const abstract = document.getElementById('sb-abs')?.value.trim() || '';
+        if (!title || !abstract) { this.error = 'Write the title and abstract first.'; return; }
+        this.loading = true; this.error = '';
+        try {
+            const res = await fetch(opts.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': opts.csrf },
+                body: JSON.stringify({ title, abstract }),
+            });
+            if (!res.ok) throw new Error(res.status === 429 ? 'Too many requests. Try again in a minute.' : 'Suggestions are unavailable right now.');
+            const d = await res.json();
+            const has = this.keywords();
+            this.sug = {
+                source: d.source, message: d.message, provider: d.provider, latency_ms: d.latency_ms,
+                kw: d.keywords.map((v) => ({ v, s: has.includes(v) ? 'accepted' : 'pending', e: '' })),
+                sdg: d.sdgs.map((v) => ({ v, s: this.sdgSel.includes(String(v)) ? 'accepted' : 'pending', name: opts.sdgNames[v] || '' })),
+                type: d.research_type ? { v: d.research_type, s: 'pending', label: opts.types[d.research_type] || d.research_type } : null,
+            };
+        } catch (e) { this.error = e.message; } finally { this.loading = false; }
+    },
+    act(kind, item, action) {
+        if (kind === 'kw') {
+            const list = this.keywords();
+            if (action === 'accept') { if (list.length >= 5 && !list.includes(item.v)) { window.toast('Up to 5 keywords. Remove one first.'); return; } this.setKeywords([...list, item.v]); item.s = 'accepted'; }
+            if (action === 'edit') { item.s = 'editing'; item.e = item.v; }
+            if (action === 'save') { const v = item.e.trim().toLowerCase(); if (!v) return; if (list.length >= 5 && !list.includes(v)) { window.toast('Up to 5 keywords. Remove one first.'); return; } this.setKeywords([...list, v]); item.s = 'edited'; item.e = v; }
+            if (action === 'reject') item.s = 'rejected';
+            if (action === 'undo') { this.setKeywords(list.filter((k) => k !== item.v && k !== item.e)); item.s = 'pending'; item.e = ''; }
+        }
+        if (kind === 'sdg') {
+            if (action === 'accept') { this.sdgSel = [...new Set([...this.sdgSel, String(item.v)])]; item.s = 'accepted'; }
+            if (action === 'reject') item.s = 'rejected';
+            if (action === 'undo') { this.sdgSel = this.sdgSel.filter((x) => x !== String(item.v)); item.s = 'pending'; }
+        }
+        if (kind === 'type') {
+            if (action === 'accept') { this.type = item.v; item.s = 'accepted'; }
+            if (action === 'reject') item.s = 'rejected';
+            if (action === 'undo') item.s = 'pending';
+        }
+    },
+    log() {
+        if (!this.sug) return '[]';
+        const out = [];
+        this.sug.kw.forEach((k) => out.push({ kind: 'keyword', suggested: k.v, final: k.s === 'edited' ? k.e : null, action: k.s === 'editing' ? 'pending' : k.s }));
+        this.sug.sdg.forEach((s) => out.push({ kind: 'sdg', suggested: String(s.v), final: null, action: s.s }));
+        if (this.sug.type) out.push({ kind: 'research_type', suggested: this.sug.type.v, final: null, action: this.sug.type.s });
+        return JSON.stringify(out);
+    },
+    meta() { return this.sug ? JSON.stringify({ source: this.sug.source, provider: this.sug.provider, latency_ms: this.sug.latency_ms }) : '{}'; },
+});
+
 /* ---------------- Landing page: "How submission works" step switcher ---------------- */
 document.addEventListener('click', (e) => {
     const box = e.target.closest('[data-lp-steps]');

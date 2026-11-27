@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Models\AccessRequest;
+use App\Models\Cluster;
+use App\Models\ClusterRun;
 use App\Models\ResearchCluster;
 use App\Models\Submission;
 use App\Models\User;
@@ -34,7 +36,7 @@ final class Navigation
         'adviser.queue' => 'inbox', 'adviser.review' => 'review', 'adviser.supervised' => 'users',
         'coordinator.queue' => 'inbox', 'coordinator.screening' => 'compare', 'coordinator.themes' => 'tag', 'coordinator.analytics' => 'chart',
         'urdc.analytics' => 'chart', 'urdc.approvals' => 'check', 'urdc.requests' => 'key', 'urdc.records' => 'folder', 'urdc.import' => 'import',
-        'urdc.clustering' => 'cluster', 'urdc.ai' => 'ai', 'activity' => 'log', 'admin.users' => 'users', 'site.content' => 'globe',
+        'urdc.clustering' => 'cluster', 'themes.review' => 'tag', 'urdc.ai' => 'ai', 'activity' => 'log', 'admin.users' => 'users', 'site.content' => 'globe',
         'admin.health' => 'heart', 'admin.services' => 'shield', 'admin.settings' => 'settings', 'admin.backups' => 'database', 'admin.evaluators' => 'clock',
         'notifications' => 'bell', 'search' => 'search', 'account' => 'user',
     ];
@@ -68,7 +70,7 @@ final class Navigation
             ]] + $library + $account,
             'coordinator' => ['Cluster work' => [
                 ['Review queue', 'coordinator.queue', $clusterId ? (Submission::where('research_cluster_id', $clusterId)->where('status', 'endorsed')->count() ?: null) : null],
-                ['Similarity review', 'coordinator.screening', null], ['Theme labels', 'coordinator.themes', 2],
+                ['Similarity review', 'coordinator.screening', null], ['Theme labels', 'coordinator.themes', self::pendingLabels()],
                 ['Cluster analytics', 'coordinator.analytics', null], ['Notifications', 'notifications', $unreadCount],
             ]] + $library + $account,
             'urdc' => [
@@ -80,7 +82,8 @@ final class Navigation
                 ],
                 'Repository' => [
                     ['Records and metadata', 'urdc.records', null], ['Bulk import', 'urdc.import', null],
-                    ['Theme clustering', 'urdc.clustering', null], ['AI performance', 'urdc.ai', null],
+                    ['Theme clustering', 'urdc.clustering', null], ['Theme labels', 'themes.review', self::pendingLabels()],
+                    ['AI performance', 'urdc.ai', null],
                 ],
                 'Monitoring' => [['Activity log', 'activity', null], ['Account help', 'admin.users', null]],
                 'Website' => [['Landing page content', 'site.content', null]],
@@ -104,7 +107,15 @@ final class Navigation
                 && ! ($i[1] === 'admin.evaluators' && ! config('tua.evaluation_copy') && ! app()->isLocal() && ! app()->runningUnitTests())));
         }
 
-        return array_filter($groups);
+        return array_filter($groups, fn (array $items) => count($items) > 0);
+    }
+
+    /** Theme labels of the newest finished or current run that nobody has confirmed yet. */
+    public static function pendingLabels(): ?int
+    {
+        $runId = ClusterRun::whereIn('state', ['done', 'current'])->latest('id')->value('id');
+
+        return $runId ? (Cluster::where('cluster_run_id', $runId)->where('label_status', 'pending')->count() ?: null) : null;
     }
 
     /** Unread in-app notifications of a user (the bell in the top bar). */

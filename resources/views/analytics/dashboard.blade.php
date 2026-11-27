@@ -44,7 +44,7 @@
         <x-panel title="Research output per year"><x-slot:actions><span class="text-muted small">trend line is descriptive only</span></x-slot:actions>
             <x-chart :option="$d['charts']['trend']" label="Research output per year" :link="$q(['year' => '__Y__'])" /></x-panel>
         <x-panel title="Outputs by college and type"><x-chart :option="$d['charts']['college']" label="Outputs by college and research type" :link="$base.'?college={name}&type={series}'" /></x-panel>
-        <x-panel title="Research theme map"><x-slot:actions><span class="text-muted small">K-Means, 2-D projection · design themes until Sprint 6</span></x-slot:actions>
+        <x-panel title="Research theme map"><x-slot:actions><span class="text-muted small">K-Means, 2-D projection · {{ \App\Domain\Site\Corpus::currentRun() ? 'themes of '.\App\Domain\Site\Corpus::currentRun()->public_id : 'sample themes until the URDC confirms a run' }}</span></x-slot:actions>
             <x-chart :option="$d['charts']['scatter']" size="tall" label="Research theme map" :link="url('/studies').'/{id}'" /></x-panel>
         <x-panel title="Theme distribution"><x-chart :option="$d['charts']['themes']" size="tall" label="Theme distribution" :link="$q(['theme' => '__K__'])" /></x-panel>
         @if ($full)

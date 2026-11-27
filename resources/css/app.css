@@ -78,6 +78,7 @@
 }
 
 @layer base {
+    [x-cloak] { display: none !important; }
     html { -webkit-text-size-adjust: 100%; }
     body {
         @apply bg-bg text-ink font-sans antialiased;

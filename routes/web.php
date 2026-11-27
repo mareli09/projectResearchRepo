@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\ActivationController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
+use App\Http\Controllers\ClusteringController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Design\AdviserController;
 use App\Http\Controllers\Design\CoordinatorController;
@@ -123,6 +124,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [StudentController::class, 'home'])->name('home');
         Route::get('/submit', [StudentController::class, 'submit'])->name('submit');
         Route::post('/submit', [StudentController::class, 'store'])->middleware('throttle:10,1')->name('store');
+        Route::post('/suggest', [StudentController::class, 'suggest'])->middleware('throttle:llm')->name('suggest');
         Route::get('/status', [StudentController::class, 'status'])->name('status');
         Route::post('/resubmit', [StudentController::class, 'resubmit'])->middleware('throttle:10,1')->name('resubmit');
         Route::get('/summary', [StudentController::class, 'summary'])->name('summary');
@@ -139,7 +141,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [CoordinatorController::class, 'queue'])->name('queue');
         Route::get('/screening', [CoordinatorController::class, 'screening'])->name('screening');
         Route::post('/screening', [CoordinatorController::class, 'decide'])->name('decide');
-        Route::get('/themes', [CoordinatorController::class, 'themes'])->name('themes');
+        Route::get('/themes', [ClusteringController::class, 'themes'])->name('themes');
         Route::get('/analytics', [CoordinatorController::class, 'analytics'])->name('analytics');
     });
 
@@ -148,7 +150,10 @@ Route::middleware('auth')->group(function () {
         Route::get('/approvals', [UrdcController::class, 'approvals'])->name('approvals');
         Route::post('/approvals', [UrdcController::class, 'decide'])->name('decide');
         Route::get('/requests', [UrdcController::class, 'requests'])->name('requests');
-        Route::get('/clustering', [UrdcController::class, 'clustering'])->name('clustering');
+        // M6 Thematic clustering (live from Sprint 6): the run is a queue job, never part of the request.
+        Route::get('/clustering', [ClusteringController::class, 'index'])->name('clustering');
+        Route::post('/clustering', [ClusteringController::class, 'run'])->middleware('throttle:6,1')->name('clustering.run');
+        Route::post('/clustering/{run}/confirm', [ClusteringController::class, 'confirm'])->name('clustering.confirm');
         Route::get('/ai-performance', [UrdcController::class, 'ai'])->name('ai');
     });
 
@@ -158,6 +163,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/settings', [SysadminController::class, 'settings'])->name('settings');
         Route::get('/backups', [SysadminController::class, 'backups'])->name('backups');
         Route::get('/evaluators', [SysadminController::class, 'evaluators'])->name('evaluators');
+    });
+
+    // Theme labels: coordinators and the URDC accept, edit or reject LLM label suggestions (§4, §7 M6).
+    Route::middleware('role:'.User::ROLE_COORDINATOR.'|'.User::ROLE_URDC)->group(function () {
+        Route::get('/themes', [ClusteringController::class, 'themes'])->name('themes.review');
+        Route::post('/themes/{cluster}', [ClusteringController::class, 'label'])->name('themes.label');
     });
 
     // [Not in manuscript] Landing page CMS: URDC and System administrator (§8)

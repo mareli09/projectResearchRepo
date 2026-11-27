@@ -11,6 +11,8 @@ Web-Based Research Repository System with Data Analytics and Visualization Using
 - **Sprint 1 (M1 accounts and access, M8 logging foundation):** done. See "Sprint 1" below.
 - **Sprint 2 (M2 repository and metadata):** done. See "Sprint 2" below.
 - **Sprint 3 (M3 submission and approval workflow):** done, except draft saving. See "Sprint 3" below.
+- **Sprint 4 (Python service, M5 similarity screening):** done. See "Sprint 4" below.
+- **Sprint 6 (M6 clustering, LLM suggestions):** done. See "Sprint 6" below. Sprint 5 (full-paper requests, search logging) is next.
 
 ## Stack
 
@@ -55,6 +57,21 @@ py -3.11 -m venv .venv
 set ANALYTICS_HMAC_SECRET=...   # PowerShell: $env:ANALYTICS_HMAC_SECRET="..."
 .venv/Scripts/uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 1
 ```
+
+Or, from the project root, `php artisan analytics:serve` (also `composer analytics`) starts it with the secret from Laravel's `.env`. `composer dev` starts the web server, queue worker, Vite and the analytics service together. After seeding, build the TF-IDF index once with `php artisan repository:index`.
+
+### OpenAI key for LLM suggestions (optional)
+
+Without a key, suggestions use the fallback (top TF-IDF terms) and say so. To try the real LLM, edit `.env` yourself. Never paste the key into chat, an issue or a commit:
+
+```
+LLM_ENABLED=true
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=sk-...
+```
+
+Then run `php artisan config:clear`. Only the title and abstract (metadata) or the cluster terms and nearest titles (labels) are sent.
 
 ## Demo accounts (local and evaluation copy only)
 
@@ -269,3 +286,44 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
   - LLM suggestions (Sprint 6).
   - "Save draft", which is still a preview.
 - **Sample workflow data:** the `WorkflowSampleSeeder` submissions have placeholder files, so the URDC can approve the sample SUB-0133 and SUB-0131 in a demo.
+
+## Sprint 4: analytics service and similarity screening (M5)
+
+- **Python service** (`analytics/app`): `/fit`, `/screen`, `/related`, `/cluster`, `/top-terms` and `/health`. It is HMAC-signed and listens on 127.0.0.1 only.
+  - The TF-IDF settings follow CLAUDE.md §7 M5.
+  - The fitted index is saved with joblib in `analytics/models/`.
+- **On submit,** `ScreenSubmission` runs as a queue job:
+  - It stores the top 5 matches with their shared terms, the highest score and the flag. The flag uses the thresholds in Settings: 0.80 or higher is a probable duplicate, 0.60 to 0.79 is similar and needs review.
+  - It never rejects a study by itself.
+  - If the index is missing, it refits and tries again.
+- **Refitting:** the index is refit after every 50 new published records and before every clustering run.
+- **Related studies** on the study page come from `/related`. If the service is down, they fall back to shared keywords.
+- **Tests:** pytest checks that the same text scores 1.0 and unrelated text scores below 0.2. Pest checks the flag at each threshold edge.
+
+## Sprint 6: thematic clustering (M6) and LLM suggestions (§10)
+
+**Clustering** (`/urdc/clustering`, URDC):
+- **Run clustering now** queues `RunClustering`; it never runs inside the web request.
+  - The job refits the index and runs K-Means for k = 2 to 15 (k-means++, n_init 10, random_state 42).
+  - It saves the elbow (inertia), silhouette and Davies–Bouldin scores, each record's cluster and 2-D position, and the top 10 terms of each cluster.
+  - The URDC can force a k.
+- **Confirm as current** makes a finished run the one used by search, the theme map and the dashboards. The previous run is archived and kept.
+- **Live run on the 1,420 local records:** k = 8 chosen by silhouette, about 11 seconds.
+
+**Theme labels** (`/coordinator/themes` for coordinators, `/themes` for the URDC):
+- Each cluster gets an LLM label of at most 5 words. If the LLM is unavailable or its reply fails validation, the label is the top 3 terms.
+- **Accept**, **Save my edit** or **Reject, use top terms**. Coordinators must also rate the suggestion from 1 to 4.
+- Each decision is written to `llm_suggestions` and the activity log, with the old and new label. The menu badge counts labels still waiting.
+
+**Metadata suggestions** (`/student/submit`):
+- **Suggest keywords and SDGs** sends only the title and abstract.
+- **The reply is validated:**
+  - 3 to 5 lowercase keywords of 1 to 4 words
+  - SDGs from 1 to 17
+  - one of the four research types
+- Each item has Accept, Edit and Remove. Nothing is added without a click.
+- What the student did with each item is saved with the submission.
+- **Fallback:** without a key, or on any failure, the form shows "Suggestions unavailable, showing top terms".
+- **Provider:** `app/Services/LlmClient/OpenAiLlmClient.php`, behind the `LlmClient` interface.
+  - Timeout 8 s and a limit of 60 calls a minute.
+  - The System administrator's "LLM on or off" setting switches it off.

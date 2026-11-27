@@ -55,7 +55,7 @@
                 <section class="panel" style="padding-block: 6px" aria-live="polite">
                     <div class="ph pt-2.5">
                         <span class="text-muted small">{{ number_format($results->total()) }} {{ \Illuminate\Support\Str::plural('study', $results->total()) }}@if (! empty($filters['q'])) for “{{ $filters['q'] }}”@endif</span>
-                        <span class="text-muted small">Theme filter uses design themes until the first clustering run (Sprint 6)</span>
+                        <span class="text-muted small">{{ \App\Domain\Site\Corpus::currentRun() ? 'Themes from clustering '.\App\Domain\Site\Corpus::currentRun()->public_id : 'Sample themes until the URDC confirms a clustering run' }}</span>
                     </div>
                     @forelse ($results as $r)
                         <x-record-row :r="$r" :href="$show($r)" />

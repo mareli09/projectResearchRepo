@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Design;
 
 use App\Domain\Analytics\Dashboard;
-use App\Domain\Site\Corpus;
 use App\Domain\Site\DesignData;
 use App\Domain\Submissions\SubmissionPresenter;
 use App\Domain\Submissions\Workflow;
@@ -90,20 +89,6 @@ class CoordinatorController extends Controller
             ->where('research_cluster_id', $cluster->id ?? 0)
             ->whereNotIn('status', ['draft', 'submitted'])
             ->orderByRaw("status = 'endorsed' DESC")->orderByDesc('id');
-    }
-
-    public function themes(): View
-    {
-        $counts = Corpus::records()->countBy('theme');
-        $nearest = Corpus::records()->groupBy('theme')->map(function ($rows, $theme) {
-            [$cx, $cy] = Corpus::THEMES[$theme]['center'];
-
-            return $rows->sortBy(fn ($r) => hypot($r['x'] - $cx, $r['y'] - $cy))->take(3)->pluck('title')->all();
-        });
-
-        return view('coordinator.themes', [
-            'run' => DesignData::runs()[0], 'labels' => DesignData::labels(), 'counts' => $counts, 'nearest' => $nearest,
-        ]);
     }
 
     public function analytics(Request $request): View
