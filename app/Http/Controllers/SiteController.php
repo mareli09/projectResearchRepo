@@ -7,17 +7,27 @@ use App\Domain\Search\RecordSearch;
 use App\Domain\Search\UsageLog;
 use App\Domain\Site\Corpus;
 use App\Domain\Site\SiteContent;
+use App\Domain\Site\SiteContentEditor;
 use App\Models\AcademicUnit;
 use App\Models\ResearchRecord;
 use App\Models\Sdg;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /** Public pages: landing page (CLAUDE.md §8), public catalog and study abstract (§7 M4). */
 class SiteController extends Controller
 {
-    public function home(): View
+    public function home(Request $request): View
     {
+        // CMS preview: the URDC or System administrator sees the draft, with a banner (§8).
+        $preview = false;
+        $draft = SiteContentEditor::draftRow();
+        if ($draft !== null && $request->boolean('preview') && config('tua.features.landing_cms')
+            && $request->user()?->hasAnyRole([User::ROLE_URDC, User::ROLE_SYSADMIN])) {
+            $request->attributes->set('site.preview', SiteContent::merge($draft->data));
+            $preview = true;
+        }
         $c = SiteContent::published();
         $corpus = Corpus::records();
         $pub = fn () => ResearchRecord::published()->with('academicUnit:id,code', 'authors');
@@ -34,6 +44,7 @@ class SiteController extends Controller
 
         return view('site.home', [
             'c' => $c,
+            'preview' => $preview,
             'latest' => $pub()->orderByDesc('year')->orderByDesc('views')->limit(4)->get(),
             'featured' => $featured,
             'clusterCounts' => $clusterCounts,

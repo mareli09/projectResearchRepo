@@ -15,6 +15,7 @@ Web-Based Research Repository System with Data Analytics and Visualization Using
 - **Sprint 5 (M4 full-paper requests, search and view logging):** done. See "Sprint 5" below.
 - **Sprint 6 (M6 clustering, LLM suggestions):** done. See "Sprint 6" below.
 - **System settings, theme saving, clustering schedule (parts of Sprints 8 and 9):** done. See "Settings, theme and schedule" below.
+- **AI performance (SOP 3) and the landing page CMS:** done. See "AI performance and CMS" below.
 
 ## Stack
 
@@ -371,3 +372,27 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
   - for "Every month", 28 days after the last run
   - after the set number of new published records
 - The URDC still confirms each run. Use `--dry-run` to check without queuing.
+
+## AI performance and CMS
+
+**AI performance** (`/urdc/ai-performance`) uses only real data:
+- **Duplicate screening:** every coordinator decision with a calibration label (duplicate or distinct) is a labeled pair, scored with its similarity from the latest screening.
+  - The page shows the confusion matrix, accuracy, precision, recall and F1 at the threshold in use.
+  - A slider recomputes them at any other threshold without changing the setting.
+  - The evaluation's test set of at least 100 pairs must be labeled by three coordinators. It is not generated, because generated labels would make up the results.
+- **Clustering quality:** silhouette and Davies–Bouldin for each run, and how many labels the coordinators kept.
+- **LLM suggestions:** accepted, edited, rejected and pending counts for each kind, fallback use, and the mean 1–4 label rating.
+- **Export report (CSV):** the metrics and every labeled pair, ready for Excel.
+
+**Landing page CMS** (`/site-content`, URDC and System administrator):
+- **Draft:** each tab's form saves to one draft row in `site_contents`. Visitors keep seeing the published version.
+  - Lists (figures, feature cards, clusters, steps, news, FAQ) can be added to, removed and reordered.
+  - Sections can be shown, hidden and moved.
+  - Featured studies can be chosen from the published records.
+  - The site's default theme color and the "let users pick" switch are set here.
+- **Actions:**
+  - **Preview** (`/?preview=1`, CMS users only) shows the draft with a banner.
+  - **Publish** saves it as the next version. The publishing history records who published, when and which sections changed, and the activity log gets a `cms` entry.
+  - **Discard changes** drops the draft.
+  - **Load default content** puts the defaults into the draft.
+- **Plain text only:** tags are stripped on save and everything is escaped on output.

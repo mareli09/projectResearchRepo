@@ -1,25 +1,28 @@
-{{-- [Not in manuscript] "Landing page content" (CLAUDE.md §8): draft → preview → publish, plain text only. --}}
+{{-- [Not in manuscript] "Landing page content" (CLAUDE.md §8): edit → draft → preview → publish. Plain text only. --}}
 @php
     use App\Domain\Site\SiteContent;
+    use Illuminate\Support\Arr;
     $in = 'w-full min-h-11 rounded-md border border-line bg-surface px-3';
     $ta = 'w-full rounded-md border border-line bg-surface px-3 py-2';
     $tabs = \App\Http\Controllers\Design\SiteContentController::TABS;
-    $field = fn (string $id, string $label, ?string $value, bool $area = false) => ['id' => $id, 'label' => $label, 'value' => (string) $value, 'area' => $area];
-    $intro = fn (string $k) => array_filter([
-        $field("$k-eyebrow", 'Small heading above the title', $c[$k]['eyebrow'] ?? null),
-        $field("$k-title", 'Section title', $c[$k]['title'] ?? null),
-        isset($c[$k]['intro']) ? $field("$k-intro", 'Introduction', $c[$k]['intro'], true) : null,
-    ]);
+    $key = fn (string $path) => str_replace('.', '__', $path);
 @endphp
 <x-layouts.app title="Landing page content">
     <x-page-head eyebrow="Website · content management" title="Landing page content"
-        lead="Edit the public home page. Changes are kept as a draft until you publish them, and every publish is written to the activity log.">
+        lead="Edit the public home page. Saved changes stay in a draft until you publish them, and every publish is written to the activity log.">
         <x-slot:actions><x-button :href="route('home')">View live page</x-button></x-slot:actions>
     </x-page-head>
-    <x-preview-note sprint="8" what="Editing, Preview, Discard and Publish" />
 
-    <div class="cms-bar"><span class="st"><span class="dot-saved"></span>Everything is published.</span>
-        <x-button preview="Sprint 8">Preview</x-button><x-button preview="Sprint 8">Discard changes</x-button><x-button variant="primary" preview="Sprint 8">Publish</x-button></div>
+    <div class="cms-bar">
+        @if ($draft)
+            <span class="st"><span class="dot-saved" style="background: var(--warn)"></span>Draft saved {{ $draft->updated_at->diffForHumans() }}. Visitors still see the published page.</span>
+            <x-button :href="route('home', ['preview' => 1])" target="_blank" rel="noopener">Preview</x-button>
+            <form method="POST" action="{{ route('site.content.discard') }}" onsubmit="return confirm('Discard all draft changes?')">@csrf<x-button type="submit">Discard changes</x-button></form>
+            <form method="POST" action="{{ route('site.content.publish') }}">@csrf<x-button type="submit" variant="primary">Publish</x-button></form>
+        @else
+            <span class="st"><span class="dot-saved"></span>Everything is published.</span>
+        @endif
+    </div>
 
     <div class="cms">
         <aside class="panel cms-nav" aria-label="Sections">
@@ -28,100 +31,102 @@
                 <div class="it" aria-current="{{ $tab === $k ? 'true' : 'false' }}"><a href="{{ route('site.content', ['tab' => $k]) }}">{{ $l }}</a></div>
             @endforeach
             <div class="eyebrow px-1.5 pt-2.5 pb-1">Sections, in page order</div>
-            @foreach ($c['order'] as $i => $k)
-                <div class="it {{ $c['show'][$k] ? '' : 'off' }}" aria-current="{{ $tab === $k ? 'true' : 'false' }}">
-                    <input type="checkbox" aria-label="Show {{ SiteContent::SECTIONS[$k] }}" @checked($c['show'][$k]) data-preview="Sprint 8" data-preview-what="Show or hide a section">
-                    <a href="{{ route('site.content', ['tab' => $k]) }}">{{ SiteContent::SECTIONS[$k] }}</a>
-                    <x-button size="sm" preview="Sprint 8" aria-label="Move up" :disabled="$i === 0">↑</x-button>
-                    <x-button size="sm" preview="Sprint 8" aria-label="Move down" :disabled="$i === count($c['order']) - 1">↓</x-button>
-                </div>
-            @endforeach
-            <div class="pt-3 px-1.5 mt-2.5 border-t border-line"><x-button size="sm" preview="Sprint 8">Load default content</x-button></div>
+            <form method="POST" action="{{ route('site.content.layout') }}">
+                @csrf <input type="hidden" name="tab" value="{{ $tab }}">
+                @foreach ($c['order'] as $i => $k)
+                    @php $shown = $c['show'][$k] ?? true; @endphp
+                    <div class="it {{ $shown ? '' : 'off' }}" aria-current="{{ $tab === $k ? 'true' : 'false' }}">
+                        <button type="submit" name="toggle" value="{{ $k }}" class="btn btn-sm" aria-pressed="{{ $shown ? 'true' : 'false' }}" aria-label="{{ $shown ? 'Hide' : 'Show' }} {{ SiteContent::SECTIONS[$k] }}" title="{{ $shown ? 'Shown. Click to hide' : 'Hidden. Click to show' }}">{{ $shown ? '●' : '○' }}</button>
+                        <a href="{{ route('site.content', ['tab' => $k]) }}">{{ SiteContent::SECTIONS[$k] }}</a>
+                        <button type="submit" name="move" value="{{ $k }}:up" class="btn btn-sm" aria-label="Move {{ SiteContent::SECTIONS[$k] }} up" @disabled($i === 0)>↑</button>
+                        <button type="submit" name="move" value="{{ $k }}:down" class="btn btn-sm" aria-label="Move {{ SiteContent::SECTIONS[$k] }} down" @disabled($i === count($c['order']) - 1)>↓</button>
+                    </div>
+                @endforeach
+            </form>
+            <form method="POST" action="{{ route('site.content.defaults') }}" class="pt-3 px-1.5 mt-2.5 border-t border-line" onsubmit="return confirm('Put the default content in the draft? Nothing goes live until you publish.')">
+                @csrf <x-button type="submit" size="sm">Load default content</x-button>
+            </form>
         </aside>
 
         <div class="stack">
             <x-panel :title="$tabs[$tab] ?? SiteContent::SECTIONS[$tab]">
                 @if (isset(SiteContent::SECTIONS[$tab]))
-                    <x-slot:actions><label class="flex items-center gap-2 small"><input type="checkbox" @checked($c['show'][$tab])> Show on the page</label></x-slot:actions>
+                    <x-slot:actions><span class="small text-muted">{{ ($c['show'][$tab] ?? true) ? 'Shown on the page' : 'Hidden from the page' }}</span></x-slot:actions>
                 @endif
-                @php
-                    $fields = match ($tab) {
-                        'brand' => [$field('site-name', 'Site name', $c['site']['name']), $field('site-tagline', 'Tagline under the name', $c['site']['tagline']), $field('footer', 'Footer text', $c['footer']['text'])],
-                        'banner' => [$field('banner-tag', 'Label', $c['banner']['tag']), $field('banner-link', 'Link text (jumps to How submission works)', $c['banner']['link']), $field('banner-text', 'Message', $c['banner']['text'], true)],
-                        'hero' => [$field('hero-eyebrow', 'Small heading', $c['hero']['eyebrow']), $field('hero-title', 'Headline', $c['hero']['title']), $field('hero-lead', 'Introduction', $c['hero']['lead'], true),
-                            $field('hero-cta1', 'Main button (opens the catalog)', $c['hero']['cta1']), $field('hero-cta2', 'Second button (opens sign in)', $c['hero']['cta2']), $field('hero-popular', 'Popular searches (comma separated)', $c['hero']['popular'])],
-                        'about' => [...$intro('about'), $field('about-body', 'Text (leave a blank line between paragraphs)', $c['about']['body'], true)],
-                        'contact' => [$field('contact-office', 'Office', $c['contact']['office']), $field('contact-address', 'Address', $c['contact']['address']), $field('contact-email', 'Email', $c['contact']['email']),
-                            $field('contact-phone', 'Phone', $c['contact']['phone']), $field('contact-hours', 'Office hours', $c['contact']['hours']), $field('contact-help', 'Account help (shown under Contact)', $c['contact']['help'], true)],
-                        'stats', 'news', 'faq' => [],
-                        default => $intro($tab),
-                    };
-                    $lists = match ($tab) {
-                        'stats' => ['Figure', $c['stats']['items'], ['v' => 'Number', 'l' => 'Label']],
-                        'about' => ['Feature card', $c['about']['points'], ['t' => 'Title', 'd' => 'Description']],
-                        'clusters' => ['Cluster', $c['clusters']['items'], ['n' => 'Cluster name', 'c' => 'Colleges', 'd' => 'Description']],
-                        'how' => ['Step', $c['how']['steps'], ['t' => 'Step', 'd' => 'Description']],
-                        'news' => ['Item', $c['news']['items'], ['d' => 'Date', 'tag' => 'Label', 't' => 'Headline', 'b' => 'Text']],
-                        'faq' => ['Question', $c['faq']['items'], ['q' => 'Question', 'a' => 'Answer']],
-                        default => null,
-                    };
-                @endphp
 
-                <div class="flex flex-col gap-3">
+                <form method="POST" action="{{ route('site.content.save', $tab) }}" class="flex flex-col gap-3" novalidate>
+                    @csrf
                     @if ($tab === 'brand')
-                        <div><div class="eyebrow mb-2">Default theme color</div>
-                            <div class="swatches max-w-sm">@foreach ($swatches as $n => $col)<button type="button" class="sw" aria-pressed="{{ strtolower($c['theme']['color']) === strtolower($col) ? 'true' : 'false' }}" data-preview="Sprint 8" data-preview-what="Set the default theme color"><i style="background: {{ $col }}"></i>{{ $n }}</button>@endforeach</div></div>
-                        <label class="flex items-center gap-2 min-h-11"><input type="checkbox" class="size-5" @checked($c['theme']['allowUser'])> Let users pick their own theme color</label>
+                        <div x-data="{ color: @js(old('theme_color', $c['theme']['color'])) }">
+                            <div class="eyebrow mb-2">Default theme color</div>
+                            <div class="swatches max-w-sm">@foreach ($swatches as $n => $col)<button type="button" class="sw" x-on:click="color = '{{ $col }}'" :aria-pressed="color.toLowerCase() === '{{ strtolower($col) }}' ? 'true' : 'false'"><i style="background: {{ $col }}"></i>{{ $n }}</button>@endforeach</div>
+                            <label class="flex items-center gap-2 mt-2 small">Custom color <input type="color" name="theme_color" x-model="color" style="width: 44px; height: 32px"> <span class="mono" x-text="color"></span></label>
+                            <x-form-error name="theme_color" />
+                        </div>
                     @endif
-                    @if ($tab === 'banner')<label class="flex items-center gap-2 min-h-11"><input type="checkbox" class="size-5" @checked($c['banner']['on'])> Show the announcement bar</label>@endif
 
-                    @foreach ($fields as $f)
-                        <div class="flex flex-col gap-1"><label for="cf-{{ $f['id'] }}" class="font-medium">{{ $f['label'] }}</label>
-                            @if ($f['area'])<textarea id="cf-{{ $f['id'] }}" rows="4" class="{{ $ta }}">{{ $f['value'] }}</textarea>
-                            @else<input id="cf-{{ $f['id'] }}" class="{{ $in }}" value="{{ $f['value'] }}">@endif</div>
+                    @foreach ($schema['bools'] ?? [] as $path => $label)
+                        <label class="flex items-center gap-2 min-h-11"><input type="checkbox" class="size-5" name="b[{{ $key($path) }}]" value="1" @checked(Arr::get($c, $path))> {{ $label }}</label>
+                    @endforeach
+
+                    @foreach ($schema['fields'] ?? [] as $path => $def)
+                        @php $id = 'cf-'.$key($path); $name = 'f['.$key($path).']'; $value = old('f.'.$key($path), Arr::get($c, $path)); @endphp
+                        <div class="flex flex-col gap-1"><label for="{{ $id }}" class="font-medium">{{ $def[0] }}</label>
+                            @if ($def[2] ?? false)<textarea id="{{ $id }}" name="{{ $name }}" rows="4" maxlength="{{ $def[1] }}" class="{{ $ta }}">{{ $value }}</textarea>
+                            @else<input id="{{ $id }}" name="{{ $name }}" maxlength="{{ $def[1] }}" class="{{ $in }}" value="{{ $value }}">@endif
+                            <x-form-error :name="'f.'.$key($path)" /></div>
                     @endforeach
 
                     @if ($tab === 'featured')
                         <div class="form-grid">
                             <div class="flex flex-col gap-1"><label for="cf-fm" class="font-medium">Which studies</label>
-                                <select id="cf-fm" class="{{ $in }}">@foreach (['manual' => 'Chosen by the URDC', 'viewed' => 'Most viewed', 'latest' => 'Most recent'] as $v => $l)<option @selected($c['featured']['mode'] === $v)>{{ $l }}</option>@endforeach</select></div>
+                                <select id="cf-fm" name="mode" class="{{ $in }}">@foreach (['manual' => 'Chosen by the URDC', 'viewed' => 'Most viewed', 'latest' => 'Most recent'] as $v => $l)<option value="{{ $v }}" @selected($c['featured']['mode'] === $v)>{{ $l }}</option>@endforeach</select></div>
                             <div class="flex flex-col gap-1"><label for="cf-fc" class="font-medium">How many</label>
-                                <select id="cf-fc" class="{{ $in }}">@foreach ([3, 6, 9] as $n)<option @selected($c['featured']['count'] === $n)>{{ $n }}</option>@endforeach</select></div>
+                                <select id="cf-fc" name="count" class="{{ $in }}">@foreach ([3, 6, 9] as $n)<option value="{{ $n }}" @selected((int) $c['featured']['count'] === $n)>{{ $n }}</option>@endforeach</select></div>
                         </div>
-                        <h3 class="font-semibold">Chosen studies</h3>
-                        <div class="cms-pick">@foreach ($featured as $id => $t)<div><span><span class="mono">{{ $id }}</span> {{ $t }}</span><x-button size="sm" variant="bad" preview="Sprint 8">Remove</x-button></div>@endforeach</div>
+                        <h3 class="font-semibold">Chosen studies <span class="small text-muted">(used when "Chosen by the URDC" is selected)</span></h3>
+                        <div class="cms-pick">@forelse ($featured as $id => $t)<div><span><span class="mono">{{ $id }}</span> {{ $t }}</span><x-button type="submit" name="remove_id" :value="$id" size="sm" variant="bad">Remove</x-button></div>@empty<p class="small text-muted">None chosen yet.</p>@endforelse</div>
                         <h3 class="font-semibold">Add a published study</h3>
-                        <div class="cms-pick">@foreach ($candidates as $r)<div><span><span class="mono">{{ $r->public_id }}</span> {{ $r->title }} <span class="text-muted">· {{ number_format($r->views) }} views</span></span><x-button size="sm" preview="Sprint 8">Add</x-button></div>@endforeach</div>
+                        <div class="cms-pick">@foreach ($candidates as $r)<div><span><span class="mono">{{ $r->public_id }}</span> {{ $r->title }} <span class="text-muted">· {{ number_format($r->views) }} views</span></span><x-button type="submit" name="add_id" :value="$r->public_id" size="sm">Add</x-button></div>@endforeach</div>
+                        <x-form-error name="add_id" />
                     @endif
-                    @if ($tab === 'clusters')<x-callout class="small">Cluster names follow the manuscript (Research Locale). Which colleges belong to each cluster is an assumption until the URDC confirms it.</x-callout>@endif
+
+                    @if (isset($schema['list']))
+                        @php [$path, $cols, $maxItems, $itemName] = $schema['list']; $items = Arr::get($c, $path, []); @endphp
+                        @foreach ($items as $i => $item)
+                            <fieldset class="cms-item">
+                                <legend class="sr-only">{{ $itemName }} {{ $i + 1 }}</legend>
+                                <div class="ph"><b class="small">{{ $itemName }} {{ $i + 1 }}</b>
+                                    <span class="flex gap-1 items-center">
+                                        <button type="submit" name="move" value="{{ $i }}:up" class="btn btn-sm" aria-label="Move {{ strtolower($itemName) }} {{ $i + 1 }} up" @disabled($i === 0)>↑</button>
+                                        <button type="submit" name="move" value="{{ $i }}:down" class="btn btn-sm" aria-label="Move {{ strtolower($itemName) }} {{ $i + 1 }} down" @disabled($i === count($items) - 1)>↓</button>
+                                        <label class="flex items-center gap-1 small"><input type="checkbox" name="items[{{ $i }}][_remove]" value="1"> Remove</label>
+                                    </span></div>
+                                @if ($tab === 'news')<label class="flex items-center gap-2 small"><input type="checkbox" name="items[{{ $i }}][on]" value="1" @checked($item['on'] ?? false)> Show this item</label>@endif
+                                @foreach ($cols as $k => $def)
+                                    <div class="flex flex-col gap-1"><label for="ci-{{ $i }}-{{ $k }}" class="font-medium small">{{ $def[0] }}</label>
+                                        @if ($def[2] ?? false)<textarea id="ci-{{ $i }}-{{ $k }}" name="items[{{ $i }}][{{ $k }}]" rows="2" maxlength="{{ $def[1] }}" class="{{ $ta }}">{{ $item[$k] ?? '' }}</textarea>
+                                        @else<input id="ci-{{ $i }}-{{ $k }}" name="items[{{ $i }}][{{ $k }}]" maxlength="{{ $def[1] }}" class="{{ $in }}" value="{{ $item[$k] ?? '' }}">@endif</div>
+                                @endforeach
+                            </fieldset>
+                        @endforeach
+                        @if ($items === [])<input type="hidden" name="items" value="">@endif
+                        <x-form-error name="items" />
+                        <div><x-button type="submit" name="add" value="1" size="sm" :disabled="count($items) >= $maxItems">+ Add {{ strtolower($itemName) }}</x-button></div>
+                    @endif
+
+                    @if ($tab === 'clusters')<x-callout class="small">Cluster names follow the manuscript (Research Locale). Which colleges belong to each cluster is an assumption until the URDC confirms it. Study counts are live.</x-callout>@endif
                     @if ($tab === 'sdg')<p class="small text-muted">The SDG list and study counts come from the repository.</p>@endif
                     @if ($tab === 'hero')<p class="small text-muted">The search box and the "Latest approved studies" card are filled from the repository automatically.</p>@endif
 
-                    @if ($lists)
-                        @php [$itemName, $items, $cols] = $lists; @endphp
-                        @foreach ($items as $i => $item)
-                            <div class="cms-item">
-                                <div class="ph"><b class="small">{{ $itemName }} {{ $i + 1 }}</b>
-                                    <span class="flex gap-1"><x-button size="sm" preview="Sprint 8" aria-label="Move up">↑</x-button><x-button size="sm" preview="Sprint 8" aria-label="Move down">↓</x-button><x-button size="sm" variant="bad" preview="Sprint 8">Remove</x-button></span></div>
-                                @foreach ($cols as $key => $label)
-                                    <div class="flex flex-col gap-1"><label for="ci-{{ $i }}-{{ $key }}" class="font-medium small">{{ $label }}</label>
-                                        @if (in_array($key, ['d', 'b', 'a'], true) && $tab !== 'news' || ($tab === 'news' && $key === 'b'))<textarea id="ci-{{ $i }}-{{ $key }}" rows="2" class="{{ $ta }}">{{ $item[$key] ?? '' }}</textarea>
-                                        @else<input id="ci-{{ $i }}-{{ $key }}" class="{{ $in }}" value="{{ $item[$key] ?? '' }}">@endif</div>
-                                @endforeach
-                            </div>
-                        @endforeach
-                        <div><x-button size="sm" preview="Sprint 8">+ Add {{ strtolower($itemName) }}</x-button></div>
-                    @endif
-                    @if ($tab === 'how')
-                        <div class="flex flex-col gap-1"><label for="cf-how-note" class="font-medium">Note under the steps</label><textarea id="cf-how-note" rows="2" class="{{ $ta }}">{{ $c['how']['note'] }}</textarea></div>
-                    @endif
-                </div>
+                    <div class="flex gap-2 pt-1"><x-button type="submit" variant="primary">Save to draft</x-button></div>
+                </form>
             </x-panel>
 
             <x-panel title="Publishing history">
                 <div class="tbl mt-2.5"><table>
                     <thead><tr><th>When</th><th>By</th><th>Changed</th></tr></thead>
-                    <tbody>@foreach ($history as $h)<tr><td class="small whitespace-nowrap">{{ $h['t'] }}</td><td class="small">{{ $h['who'] }}</td><td class="small">{{ $h['what'] }}</td></tr>@endforeach</tbody>
+                    <tbody>@forelse ($history as $h)<tr><td class="small whitespace-nowrap">{{ $h['t'] }}</td><td class="small">{{ $h['who'] }}</td><td class="small">{{ $h['what'] }}</td></tr>@empty<tr><td colspan="3" class="text-muted">Nothing published yet.</td></tr>@endforelse</tbody>
                 </table></div>
             </x-panel>
         </div>

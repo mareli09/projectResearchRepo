@@ -4,11 +4,13 @@ namespace App\Domain\Site;
 
 use App\Models\SiteContentVersion;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Once;
 
 /**
  * [Not in manuscript] Landing page content (CLAUDE.md §8). Plain text only: it is escaped on output.
- * Today this returns the default content. Sprint 8 stores versions in site_contents (draft/published)
- * and the URDC edits them in "Landing page content".
+ * Versions are stored in site_contents (one draft, many published); the URDC edits them in
+ * "Landing page content" (SiteContentEditor). The live page always shows the latest published version,
+ * except in a CMS preview, where the request carries the draft.
  */
 final class SiteContent
 {
@@ -32,21 +34,31 @@ final class SiteContent
      */
     public static function published(): array
     {
+        // A CMS preview puts the draft on the request (SiteController::home), never in a shared cache.
+        $preview = app()->bound('request') ? request()->attributes->get('site.preview') : null;
+        if (is_array($preview)) {
+            return $preview;
+        }
+
         // Read once per request (the layout and the page both ask for it).
         return once(fn () => self::load());
     }
 
-    /** @return array<string, mixed> */
-    private static function load(): array
+    /** Clears the per-request copy after a publish. */
+    public static function forget(): void
+    {
+        Once::flush();
+    }
+
+    /**
+     * Lays stored content over the defaults, so a key added in a later release still has a value.
+     *
+     * @param  array<string, mixed>|null  $data
+     * @return array<string, mixed>
+     */
+    public static function merge(?array $data): array
     {
         $defaults = self::defaults();
-        try {
-            $data = SiteContentVersion::where('status', 'published')->orderByDesc('version')->value('data');
-        } catch (QueryException) {
-            $data = null; // table not migrated yet
-        }
-        $data = is_string($data) ? json_decode($data, true) : $data;
-
         $out = $defaults;
         foreach ((array) $data as $key => $value) {
             $out[$key] = is_array($value) && isset($defaults[$key]) && is_array($defaults[$key]) && ! array_is_list($value)
@@ -55,6 +67,19 @@ final class SiteContent
         }
 
         return $out;
+    }
+
+    /** @return array<string, mixed> */
+    private static function load(): array
+    {
+        try {
+            $data = SiteContentVersion::where('status', 'published')->orderByDesc('version')->value('data');
+        } catch (QueryException) {
+            $data = null; // table not migrated yet
+        }
+        $data = is_string($data) ? json_decode($data, true) : $data;
+
+        return self::merge(is_array($data) ? $data : null);
     }
 
     /** @return array<string, mixed> */

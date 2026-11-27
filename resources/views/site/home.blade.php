@@ -32,6 +32,11 @@
 </head>
 <body class="lp">
     <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:m-2 lp-btn lp-btn-lime">Skip to content</a>
+    @if ($preview ?? false)
+        <div role="status" style="position: sticky; top: 0; z-index: 60; background: #b5862a; color: #fff; padding: 10px 16px; text-align: center; font-weight: 600">
+            Preview of the draft. Visitors still see the published page. <a href="{{ route('site.content') }}" style="color: #fff; text-decoration: underline">Back to the editor</a>
+        </div>
+    @endif
 
     {{-- Top utility bar --}}
     <div class="lp-top">

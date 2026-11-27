@@ -5,6 +5,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\AiPerformanceController;
 use App\Http\Controllers\Auth\ActivationController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -161,7 +162,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/clustering', [ClusteringController::class, 'index'])->name('clustering');
         Route::post('/clustering', [ClusteringController::class, 'run'])->middleware('throttle:6,1')->name('clustering.run');
         Route::post('/clustering/{run}/confirm', [ClusteringController::class, 'confirm'])->name('clustering.confirm');
-        Route::get('/ai-performance', [UrdcController::class, 'ai'])->name('ai');
+        Route::get('/ai-performance', [AiPerformanceController::class, 'index'])->name('ai');
+        Route::get('/ai-performance/export', [AiPerformanceController::class, 'export'])->name('ai.export');
     });
 
     Route::middleware('role:'.User::ROLE_SYSADMIN)->prefix('/admin')->name('admin.')->group(function () {
@@ -180,8 +182,14 @@ Route::middleware('auth')->group(function () {
     });
 
     // [Not in manuscript] Landing page CMS: URDC and System administrator (§8)
-    Route::get('/site-content', [SiteContentController::class, 'edit'])
-        ->middleware('role:'.User::ROLE_URDC.'|'.User::ROLE_SYSADMIN)->name('site.content');
+    Route::middleware('role:'.User::ROLE_URDC.'|'.User::ROLE_SYSADMIN)->prefix('/site-content')->group(function () {
+        Route::get('/', [SiteContentController::class, 'edit'])->name('site.content');
+        Route::post('/layout', [SiteContentController::class, 'layout'])->name('site.content.layout');
+        Route::post('/publish', [SiteContentController::class, 'publish'])->name('site.content.publish');
+        Route::post('/discard', [SiteContentController::class, 'discard'])->name('site.content.discard');
+        Route::post('/defaults', [SiteContentController::class, 'defaults'])->name('site.content.defaults');
+        Route::post('/{tab}', [SiteContentController::class, 'save'])->where('tab', '[a-z]+')->name('site.content.save');
+    });
 
     // Activity log (M8)
     Route::middleware('permission:activity.view')->group(function () {
