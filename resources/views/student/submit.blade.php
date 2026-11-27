@@ -4,44 +4,59 @@
     $u = auth()->user();
     $in = 'w-full min-h-11 rounded-md border bg-surface px-3';
     $err = fn ($k) => $errors->has($k) ? 'border-bad' : 'border-line';
-    $oldSdgs = array_map('intval', (array) old('sdgs', []));
+    // A saved draft fills the form; values just typed (old input after an error) come first.
+    $dv = fn (string $key, $default = null) => old($key, $draft?->getAttribute($key) ?? $default);
+    $oldSdgs = array_map('intval', (array) old('sdgs', $draft?->sdgs ?? []));
+    $oldKeywords = (string) old('keywords', $draft ? implode(', ', (array) $draft->keywords) : '');
+    $oldAuthors = (string) old('authors', $draft && $draft->members->isNotEmpty() ? $draft->members->sortBy('position')->pluck('name')->implode("\n") : $u->name);
+    $imradNa = (bool) old('imrad_not_applicable', $draft?->imrad_not_applicable ?? false);
 @endphp
 <x-layouts.app title="Submit a study">
     <x-page-head eyebrow="M2 · M3 · Submission form" title="Submit a study" lead="Metadata is captured here so your study can be searched, screened and counted in reports. Fields marked with * are required." />
 
     @if ($errors->any())
-        <x-callout variant="bad" class="mb-4" role="alert"><b>Please fix the {{ $errors->count() === 1 ? 'item' : $errors->count().' items' }} below.</b> Your files need to be attached again.</x-callout>
+        <x-callout variant="bad" class="mb-4" role="alert"><b>Please fix the {{ $errors->count() === 1 ? 'item' : $errors->count().' items' }} below.</b> {{ $draft ? 'Files saved with your draft are kept; other files need to be attached again.' : 'Your files need to be attached again.' }}</x-callout>
+    @endif
+
+    @if ($draft)
+        <x-callout class="mb-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <span><b>Draft {{ $draft->public_id }}</b> · saved {{ $draft->updated_at?->timezone(config('app.timezone'))->format('M j, Y · g:i A') }}. Only you can see it. Your adviser is not told until you submit.</span>
+                <form method="POST" action="{{ route('student.discard-draft') }}" x-data @submit="if (! confirm('Delete this draft and its saved files?')) $event.preventDefault()">@csrf
+                    <x-button type="submit" size="sm" variant="bad">Delete draft</x-button></form>
+            </div>
+        </x-callout>
     @endif
 
     <form method="POST" action="{{ route('student.store') }}" enctype="multipart/form-data" class="stack" novalidate
-          x-data="Object.assign(tuaSuggest({ url: @js(route('student.suggest')), csrf: @js(csrf_token()), keywords: @js((string) old('keywords')), sdgs: @js($oldSdgs), type: @js((string) old('research_type')), sdgNames: @js($sdgs->pluck('name', 'id')), types: @js(ResearchTypes::TYPES) }), { w: 0, imradNa: @js((bool) old('imrad_not_applicable')) })">
+          x-data="Object.assign(tuaSuggest({ url: @js(route('student.suggest')), csrf: @js(csrf_token()), keywords: @js($oldKeywords), sdgs: @js($oldSdgs), type: @js((string) $dv('research_type', '')), sdgNames: @js($sdgs->pluck('name', 'id')), types: @js(ResearchTypes::TYPES) }), { w: 0, imradNa: @js($imradNa) })">
         @csrf
         <input type="hidden" name="llm_log" :value="log()">
         <input type="hidden" name="llm_meta" :value="meta()">
         <x-panel title="Study details">
             <div class="form-grid">
                 <div class="full flex flex-col gap-1"><label for="sb-title" class="font-medium">Title *</label>
-                    <input id="sb-title" name="title" value="{{ old('title') }}" required class="{{ $in }} {{ $err('title') }}"><x-form-error name="title" /></div>
+                    <input id="sb-title" name="title" value="{{ $dv('title') }}" required class="{{ $in }} {{ $err('title') }}"><x-form-error name="title" /></div>
                 <div class="full flex flex-col gap-1" x-init="w = ($refs.a.value.trim().match(/\S+/g) || []).length">
                     <label for="sb-abs" class="font-medium">Abstract * ({{ \App\Domain\Repository\RepositorySettings::abstractWordLimit() }} words max) <span class="text-muted" x-text="'· ' + w + ' words'"></span></label>
-                    <textarea id="sb-abs" name="abstract" x-ref="a" rows="6" required class="w-full rounded-md border bg-surface px-3 py-2 {{ $err('abstract') }}" @input="w = ($el.value.trim().match(/\S+/g) || []).length">{{ old('abstract') }}</textarea>
+                    <textarea id="sb-abs" name="abstract" x-ref="a" rows="6" required class="w-full rounded-md border bg-surface px-3 py-2 {{ $err('abstract') }}" @input="w = ($el.value.trim().match(/\S+/g) || []).length">{{ $dv('abstract') }}</textarea>
                     <x-form-error name="abstract" /></div>
                 <div class="flex flex-col gap-1"><label for="sb-type" class="font-medium">Research type *</label>
                     <select id="sb-type" name="research_type" x-model="type" class="{{ $in }} {{ $err('research_type') }}"><option value="">Choose…</option>
-                        @foreach (array_slice(ResearchTypes::TYPES, 0, 3, true) as $k => $l)<option value="{{ $k }}" @selected(old('research_type') === $k)>{{ $l }}</option>@endforeach</select>
+                        @foreach (array_slice(ResearchTypes::TYPES, 0, 3, true) as $k => $l)<option value="{{ $k }}" @selected($dv('research_type') === $k)>{{ $l }}</option>@endforeach</select>
                     <x-form-error name="research_type" /></div>
                 <div class="flex flex-col gap-1"><label for="sb-prog" class="font-medium">Program *</label>
                     <select id="sb-prog" name="program_id" class="{{ $in }} {{ $err('program_id') }}"><option value="">Choose…</option>
-                        @foreach ($programs as $p)<option value="{{ $p->id }}" @selected((string) old('program_id', $u->program_id) === (string) $p->id)>{{ $p->name }}</option>@endforeach</select>
+                        @foreach ($programs as $p)<option value="{{ $p->id }}" @selected((string) $dv('program_id', $u->program_id) === (string) $p->id)>{{ $p->name }}</option>@endforeach</select>
                     <x-form-error name="program_id" /></div>
                 <div class="flex flex-col gap-1"><label for="sb-adv" class="font-medium">Adviser *</label>
                     <select id="sb-adv" name="adviser_user_id" class="{{ $in }} {{ $err('adviser_user_id') }}"><option value="">Choose…</option>
-                        @foreach ($advisers as $a)<option value="{{ $a->id }}" @selected((string) old('adviser_user_id') === (string) $a->id)>{{ $a->name }}</option>@endforeach</select>
+                        @foreach ($advisers as $a)<option value="{{ $a->id }}" @selected((string) $dv('adviser_user_id') === (string) $a->id)>{{ $a->name }}</option>@endforeach</select>
                     <x-form-error name="adviser_user_id" /></div>
                 <div class="flex flex-col gap-1"><label for="sb-year" class="font-medium">Year *</label>
-                    <input id="sb-year" name="year" type="number" inputmode="numeric" class="{{ $in }} {{ $err('year') }}" value="{{ old('year', date('Y')) }}"><x-form-error name="year" /></div>
+                    <input id="sb-year" name="year" type="number" inputmode="numeric" class="{{ $in }} {{ $err('year') }}" value="{{ $dv('year', date('Y')) }}"><x-form-error name="year" /></div>
                 <div class="full flex flex-col gap-1"><label for="sb-auth" class="font-medium">Authors * (one per line)</label>
-                    <textarea id="sb-auth" name="authors" rows="3" class="w-full rounded-md border bg-surface px-3 py-2 {{ $err('authors') }}">{{ old('authors', $u->name) }}</textarea>
+                    <textarea id="sb-auth" name="authors" rows="3" class="w-full rounded-md border bg-surface px-3 py-2 {{ $err('authors') }}">{{ $oldAuthors }}</textarea>
                     <x-form-error name="authors" /></div>
             </div>
         </x-panel>
@@ -116,11 +131,14 @@
             <x-slot:actions><span class="text-muted small">Each file gets a SHA-256 fingerprint. An exact copy of an existing file stops the submission. Max {{ $maxMb }} MB each.</span></x-slot:actions>
             <div class="flex flex-col gap-2">
                 @foreach ($slots as $key => $def)
-                    <div class="slot {{ $errors->has('files.'.$key) ? 'border-bad' : '' }}" @if ($key === 'imrad') :class="imradNa && 'filled'" @endif>
+                    <div class="slot {{ $errors->has('files.'.$key) ? 'border-bad' : '' }} {{ $draftFiles->has($key) ? 'filled' : '' }}" @if ($key === 'imrad') :class="imradNa && 'filled'" @endif>
                         <div class="min-w-0">
                             <label for="sl-{{ $key }}"><b>{{ $def['label'] }}</b> <span class="text-muted small">· {{ strtoupper(implode(' / ', $def['mimes'])) }}</span></label>
                             @if ($key === 'imrad')
                                 <label class="flex items-center gap-2 small mt-1"><input type="checkbox" name="imrad_not_applicable" value="1" x-model="imradNa"> Not applicable to my study</label>
+                            @endif
+                            @if ($saved = $draftFiles->get($key))
+                                <div class="small mt-1"><x-pill variant="ok">Saved</x-pill> <span class="text-muted">{{ $saved->original_name }} · attach a new file only to replace it</span></div>
                             @endif
                             <x-form-error :name="'files.'.$key" />
                         </div>
@@ -133,8 +151,8 @@
 
         <div class="flex flex-wrap items-center gap-2">
             <x-button type="submit" variant="primary">Submit for adviser endorsement</x-button>
-            <x-button preview="Sprint 3b" data-preview-what="Save draft">Save draft</x-button>
-            <span class="small text-muted">Your adviser is emailed as soon as you submit.</span>
+            <x-button type="submit" name="action" value="draft" formnovalidate>Save draft</x-button>
+            <span class="small text-muted">Your adviser is emailed as soon as you submit. A draft needs only a title and is seen by nobody else.</span>
         </div>
     </form>
 </x-layouts.app>

@@ -223,7 +223,7 @@ How the design screens work:
   - The landing page, catalog, search (facets: college, year, type, theme, SDG, adviser; sort), study pages, related studies, the analytics dashboards (Table 7 charts and compliance), the supervised-studies and research-summary charts, and the settings values all read the 1,419 records and the settings table.
   - Downloads on the study page use the real permission check.
 - **Sample data only in the seeders.** `app/Domain/Site/DesignData.php` feeds `WorkflowSampleSeeder` (sample submissions, requests, runs, notifications and searches). No screen reads it any more.
-- **Buttons that do not work yet** use `<x-button preview="Sprint N">`. They never submit; a toast says which sprint builds them. Every such page shows a "Design preview" note.
+- **No design-only buttons are left.** A test opens every screen for its role and checks that none remains.
 - **Themes before clustering:** until the first K-Means run (Sprint 6), `app/Domain/Site/Corpus.php` gives each record the prototype theme that best matches its keywords. This drives the theme map, theme filter and heat map.
 - **Theme picker [Not in manuscript]:** the Theme button in the top bar has 8 swatches, a custom color, and System, Light or Dark. The accent colors are computed from the chosen hue (lightness capped at 36% in light mode for WCAG AA). Guests keep the choice in the browser. For signed-in users it is saved to the account.
 - **Charts:** `<x-chart>` holds an ECharts option. Colors are written as `var(--token)` so charts follow the theme and redraw when it changes. On phones the legend moves below the chart. Clicking a segment opens the matching search: the records behind it.
@@ -469,3 +469,17 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
 - Exports use the filters on the page. A coordinator only ever gets their own cluster: a college from another cluster in the address gives empty figures.
 - Cells that start with `=`, `+`, `-` or `@` are prefixed with `'`, so a spreadsheet never runs them as formulas.
 - Each export is logged as a `download` event.
+
+## Save draft
+
+On "Submit a study" (CLAUDE.md §7 M3, state `draft`):
+- **Save draft** keeps what is filled in and any files attached as the student's one draft.
+  - Only the title is required. Anything filled in is still checked: the word limit, at most 5 keywords, a real program and adviser, and the file type, size and exact-duplicate check.
+  - The draft gets its SUB number now.
+- **Private:** only the student can see the draft. It is not in the adviser's or coordinator's queues or on the status page, and nobody is emailed.
+- **Reopening the form** fills it from the draft and marks the saved files "Saved". Attach a file again only to replace it.
+- **Submit** turns the draft into the submission, with the same number. Every field and all required files (saved or new) are required. Only then is the adviser emailed and screening started.
+- **Delete draft** removes the draft and its stored files.
+- Saving a draft is logged as `upload`, and LLM suggestion choices are logged as on submit.
+- A migration lets `abstract`, `research_type` and `year` be empty while a submission is a draft.
+

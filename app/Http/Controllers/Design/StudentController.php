@@ -12,6 +12,7 @@ use App\Domain\Submissions\SubmissionRules;
 use App\Domain\Submissions\Workflow;
 use App\Http\Controllers\Controller;
 use App\Models\Program;
+use App\Models\RecordFile;
 use App\Models\ResearchRecord;
 use App\Models\Sdg;
 use App\Models\Submission;
@@ -54,28 +55,56 @@ class StudentController extends Controller
             'programs' => Program::where('academic_unit_id', $user->academic_unit_id)->orderBy('name')->get(),
             'advisers' => User::role(User::ROLE_ADVISER)->orderByRaw('academic_unit_id = ? DESC', [$user->academic_unit_id])->orderBy('name')->get(['id', 'name', 'academic_unit_id']),
             'maxMb' => RepositorySettings::maxFileMb(),
+            'draft' => $draft = self::draftOf($user),
+            'draftFiles' => $draft ? RecordFile::where('submission_id', $draft->id)->where('is_current', true)->get()->keyBy('slot') : collect(),
         ]);
     }
 
     public function store(Request $request, Workflow $workflow): RedirectResponse
     {
+        $draft = self::draftOf($request->user());
+        $saveDraft = $request->input('action') === 'draft';
+
         $data = SubmissionRules::normalize($request->except('files'));
         $data['files'] = $request->file('files', []);
-        Validator::make($data, SubmissionRules::rules(), SubmissionRules::messages())->validate();
+        Validator::make($data, $saveDraft ? SubmissionRules::draftRules() : SubmissionRules::rules(), SubmissionRules::messages())->validate();
 
         /** @var array<string, UploadedFile> $uploads */
         $uploads = array_filter((array) $request->file('files', []), fn ($f, $slot) => array_key_exists($slot, FileSlots::slots()), ARRAY_FILTER_USE_BOTH);
-        $sub = $workflow->submit($request->user(), $data, $uploads);
 
-        // What the student did with each LLM suggestion (§10 "Logging").
+        $sub = $saveDraft
+            ? $workflow->saveDraft($request->user(), $data, $uploads, $draft)
+            : $workflow->submit($request->user(), $data, $uploads, $draft);
+
+        // What the student did with each LLM suggestion (§10 "Logging"), also when only a draft is saved.
         $log = json_decode((string) $request->input('llm_log', '[]'), true);
         $meta = json_decode((string) $request->input('llm_meta', '{}'), true);
         if (is_array($log) && $log !== []) {
             Suggestions::record($sub, $request->user(), array_slice($log, 0, 20), is_array($meta) ? $meta : []);
         }
 
+        if ($saveDraft) {
+            return redirect()->route('student.submit')
+                ->with('status', "Draft {$sub->public_id} saved. Only you can see it. Attached files are kept, so you do not need to attach them again.");
+        }
+
         return redirect()->route('student.status', ['id' => $sub->public_id])
             ->with('status', "Submitted as {$sub->public_id}. Your adviser was notified by email.");
+    }
+
+    public function discardDraft(Request $request, Workflow $workflow): RedirectResponse
+    {
+        $draft = self::draftOf($request->user());
+        abort_if($draft === null, 404);
+        $workflow->discardDraft($request->user(), $draft);
+
+        return redirect()->route('student.submit')->with('status', "Draft {$draft->public_id} was deleted with its files.");
+    }
+
+    /** The student's one saved draft, if any. */
+    private static function draftOf(User $user): ?Submission
+    {
+        return Submission::with('members')->where('student_user_id', $user->id)->where('status', 'draft')->latest('id')->first();
     }
 
     /** LLM metadata suggestions for the submit form (JSON). Only the title and abstract are sent (§10). */
@@ -140,6 +169,7 @@ class StudentController extends Controller
     /** @return Collection<int, Submission> */
     private function mine(User $user): Collection
     {
-        return Submission::with(SubmissionPresenter::WITH)->where('student_user_id', $user->id)->orderByDesc('id')->get();
+        // Drafts are shown on Submit a study, not in the status lists.
+        return Submission::with(SubmissionPresenter::WITH)->where('student_user_id', $user->id)->where('status', '!=', 'draft')->orderByDesc('id')->get();
     }
 }

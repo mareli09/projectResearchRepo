@@ -87,12 +87,13 @@ it('keeps signed-in pages away from guests', function (string $url) {
     $this->get($url)->assertRedirect(route('login'));
 })->with(['/search', '/studies/TUA-2023-1420', '/notifications', '/student', '/urdc/analytics', '/admin/health']);
 
-it('marks actions that are not built yet as design previews', function () {
-    $this->actingAs(demo(User::ROLE_STUDENT))->get('/student/submit')
-        ->assertSee('Submit for adviser endorsement')
-        ->assertDontSee('data-preview="Sprint 6"', false)
-        ->assertSee('LLM suggestion');
-    $this->actingAs(demo(User::ROLE_URDC))->get('/urdc/analytics')->assertDontSee('data-preview', false);
+it('has no design-only buttons left on any screen', function () {
+    foreach (SCREENS as $role => $urls) {
+        foreach ($urls as $url) {
+            $this->actingAs(demo($role))->get($url)->assertOk()->assertDontSee('data-preview', false)->assertDontSee('Design preview');
+        }
+    }
+    $this->actingAs(demo(User::ROLE_STUDENT))->get('/student/submit')->assertSee('Submit for adviser endorsement')->assertSee('Save draft')->assertSee('LLM suggestion');
 });
 
 it('filters search by facets on real records', function () {

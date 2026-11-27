@@ -21,6 +21,7 @@ use App\Notifications\WorkflowNotice;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
@@ -45,51 +46,114 @@ final class Workflow
      * @param  array<string, mixed>  $data  validated by SubmissionRules
      * @param  array<string, UploadedFile>  $uploads  slot => file
      */
-    public function submit(User $student, array $data, array $uploads): Submission
+    public function submit(User $student, array $data, array $uploads, ?Submission $draft = null): Submission
     {
         $imradNa = (bool) ($data['imrad_not_applicable'] ?? false);
-        $this->checkFiles($uploads, $imradNa, null);
+        // From a draft, files saved earlier count; the check for missing slots comes after storing.
+        $this->checkFiles($uploads, $imradNa, $draft);
 
-        $program = Program::with('academicUnit')->find($data['program_id']);
-        $unit = $program !== null ? $program->academicUnit : ($student->academic_unit_id ? AcademicUnit::find($student->academic_unit_id) : null);
-
-        $sub = DB::transaction(function () use ($student, $data, $uploads, $imradNa, $program, $unit): Submission {
-            $sub = Submission::create([
-                'public_id' => self::nextPublicId(),
-                'student_user_id' => $student->id,
-                'adviser_user_id' => (int) $data['adviser_user_id'],
-                'research_cluster_id' => $unit?->research_cluster_id,
-                'academic_unit_id' => $unit?->id,
-                'program_id' => $program?->id,
-                'title' => $data['title'],
-                'abstract' => $data['abstract'],
-                'research_type' => $data['research_type'],
-                'year' => (int) $data['year'],
-                'keywords' => $data['keywords'],
-                'sdgs' => array_map('intval', $data['sdgs'] ?? []),
-                'imrad_not_applicable' => $imradNa,
-                'status' => 'submitted',
-                'current_step' => 1,
-                'submitted_at' => now(),
-            ]);
-            foreach (array_values($data['authors']) as $i => $name) {
-                $sub->members()->create(['name' => $name, 'user_id' => $name === $student->name ? $student->id : null, 'position' => $i + 1]);
-            }
+        $sub = DB::transaction(function () use ($student, $data, $uploads, $imradNa, $draft): Submission {
+            $sub = $this->fill($draft ?? new Submission(['public_id' => self::nextPublicId(), 'student_user_id' => $student->id]), $student, $data, $imradNa);
+            $sub->save();
+            $this->saveMembers($sub, $student, $data['authors'] ?? []);
             foreach ($uploads as $slot => $file) {
                 $this->files->store($sub, $slot, (string) $file->getRealPath(), $file->getClientOriginalName(), $student);
             }
+            $missing = SubmissionFiles::missingSlots($sub);
+            if ($missing !== []) {
+                throw ValidationException::withMessages(array_combine(
+                    array_map(fn ($s) => 'files.'.$s, $missing),
+                    array_map(fn ($s) => 'Attach the '.FileSlots::slots()[$s]['label'].'.', $missing),
+                ));
+            }
+            $sub->forceFill(['status' => 'submitted', 'current_step' => 1, 'submitted_at' => now()])->save();
             $this->review($sub, 1, $student, 'submit', null);
 
             return $sub;
         });
 
-        Audit::record(AuditEvent::SUBMIT, "Submitted {$sub->public_id} with ".count($uploads).' files', $sub, ['public_id' => $sub->public_id], $student);
+        $files = RecordFile::where('submission_id', $sub->id)->where('is_current', true)->count();
+        Audit::record(AuditEvent::SUBMIT, "Submitted {$sub->public_id} with {$files} files".($draft ? ' (from a saved draft)' : ''), $sub, ['public_id' => $sub->public_id], $student);
         self::queue(new ScreenSubmission($sub));
         $this->tell($student, "{$sub->public_id} received",
             'All required files were received. Your adviser was asked to endorse it. The similarity screening result appears on your status page.', $sub, 'student.status');
         $this->tell($sub->adviser, "New submission to endorse: {$sub->public_id}", "{$student->name} submitted \"{$sub->title}\".", $sub, 'adviser.review');
 
         return $sub;
+    }
+
+    /**
+     * "Save draft": keeps what the student has filled in so far, and any files attached, as the
+     * student's one draft. Nobody else sees it and nobody is emailed. Files are checked as on submit.
+     *
+     * @param  array<string, mixed>  $data  validated by SubmissionRules::draftRules()
+     * @param  array<string, UploadedFile>  $uploads
+     */
+    public function saveDraft(User $student, array $data, array $uploads, ?Submission $draft): Submission
+    {
+        $imradNa = (bool) ($data['imrad_not_applicable'] ?? false);
+        $this->checkFiles($uploads, $imradNa, $draft, requireAll: false);
+
+        $sub = DB::transaction(function () use ($student, $data, $uploads, $imradNa, $draft): Submission {
+            $sub = $this->fill($draft ?? new Submission(['public_id' => self::nextPublicId(), 'student_user_id' => $student->id]), $student, $data, $imradNa);
+            $sub->forceFill(['status' => 'draft', 'current_step' => 0])->save();
+            $this->saveMembers($sub, $student, $data['authors'] ?? []);
+            foreach ($uploads as $slot => $file) {
+                $this->files->store($sub, $slot, (string) $file->getRealPath(), $file->getClientOriginalName(), $student);
+            }
+
+            return $sub;
+        });
+
+        Audit::record(AuditEvent::UPLOAD, "Draft {$sub->public_id} saved".($uploads ? ' with '.count($uploads).' new files' : ''), $sub, ['public_id' => $sub->public_id, 'slots' => array_keys($uploads)], $student);
+
+        return $sub;
+    }
+
+    /** Deletes the student's draft and its files. A submitted study can never be deleted this way. */
+    public function discardDraft(User $student, Submission $draft): void
+    {
+        abort_unless($draft->status === 'draft' && $draft->student_user_id === $student->id, 403);
+
+        $paths = RecordFile::where('submission_id', $draft->id)->pluck('path')->all();
+        DB::transaction(function () use ($draft): void {
+            RecordFile::where('submission_id', $draft->id)->delete();
+            $draft->members()->delete();
+            $draft->delete();
+        });
+        Storage::disk('research')->delete($paths);
+        Audit::record(AuditEvent::UPLOAD, "Draft {$draft->public_id} discarded", null, ['public_id' => $draft->public_id, 'files' => count($paths)], $student);
+    }
+
+    /** @param array<string, mixed> $data */
+    private function fill(Submission $sub, User $student, array $data, bool $imradNa): Submission
+    {
+        $program = ! empty($data['program_id']) ? Program::with('academicUnit')->find($data['program_id']) : null;
+        $unit = $program !== null ? $program->academicUnit : ($student->academic_unit_id ? AcademicUnit::find($student->academic_unit_id) : null);
+
+        return $sub->fill([
+            'adviser_user_id' => ! empty($data['adviser_user_id']) ? (int) $data['adviser_user_id'] : null,
+            'research_cluster_id' => $unit?->research_cluster_id,
+            'academic_unit_id' => $unit?->id,
+            'program_id' => $program?->id,
+            'title' => $data['title'],
+            'abstract' => $data['abstract'] ?? null,
+            'research_type' => $data['research_type'] ?? null,
+            'year' => ! empty($data['year']) ? (int) $data['year'] : null,
+            'keywords' => array_values($data['keywords'] ?? []),
+            'sdgs' => array_map('intval', $data['sdgs'] ?? []),
+            'imrad_not_applicable' => $imradNa,
+        ]);
+    }
+
+    /** @param iterable<string> $authors */
+    private function saveMembers(Submission $sub, User $student, iterable $authors): void
+    {
+        $sub->members()->delete();
+        $i = 0;
+        foreach ($authors as $name) {
+            $sub->members()->create(['name' => $name, 'user_id' => $name === $student->name ? $student->id : null, 'position' => ++$i]);
+        }
     }
 
     public function endorse(User $adviser, Submission $sub, ?string $comment): void
@@ -259,7 +323,7 @@ final class Workflow
      *
      * @throws ValidationException
      */
-    private function checkFiles(array $uploads, bool $imradNa, ?Submission $own): void
+    private function checkFiles(array $uploads, bool $imradNa, ?Submission $own, bool $requireAll = true): void
     {
         $errors = [];
         foreach ($uploads as $slot => $file) {
@@ -276,7 +340,7 @@ final class Workflow
             }
         }
 
-        if ($own === null) {
+        if ($own === null && $requireAll) {
             foreach (FileSlots::slots() as $slot => $def) {
                 if ($def['required'] && ! isset($uploads[$slot]) && ! ($slot === 'imrad' && $imradNa) && ! isset($errors['files.'.$slot])) {
                     $errors['files.'.$slot] = "Attach the {$def['label']}.";

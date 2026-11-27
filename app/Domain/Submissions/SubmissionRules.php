@@ -51,6 +51,28 @@ final class SubmissionRules
         ];
     }
 
+    /**
+     * "Save draft": only the title is required. Anything filled in must still be valid
+     * (word limit, at most 5 keywords, real program and adviser), so a draft never holds bad data.
+     *
+     * @return array<string, mixed>
+     */
+    public static function draftRules(): array
+    {
+        $rules = self::rules();
+        foreach ($rules as $field => $list) {
+            if ($field === 'title' || ! is_array($list)) {
+                continue;
+            }
+            // Lists (authors, keywords) may be shorter than the minimum while drafting.
+            $isList = in_array('array', $list, true);
+            $list = array_values(array_filter($list, fn ($r) => $r !== 'required' && ! ($isList && is_string($r) && str_starts_with($r, 'min:'))));
+            $rules[$field] = ['nullable', ...$list];
+        }
+
+        return $rules;
+    }
+
     /** @return array<string, string> */
     public static function messages(): array
     {

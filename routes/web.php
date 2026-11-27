@@ -133,6 +133,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [StudentController::class, 'home'])->name('home');
         Route::get('/submit', [StudentController::class, 'submit'])->name('submit');
         Route::post('/submit', [StudentController::class, 'store'])->middleware('throttle:10,1')->name('store');
+        Route::post('/submit/draft/discard', [StudentController::class, 'discardDraft'])->name('discard-draft');
         Route::post('/suggest', [StudentController::class, 'suggest'])->middleware('throttle:llm')->name('suggest');
         Route::get('/status', [StudentController::class, 'status'])->name('status');
         Route::post('/resubmit', [StudentController::class, 'resubmit'])->middleware('throttle:10,1')->name('resubmit');

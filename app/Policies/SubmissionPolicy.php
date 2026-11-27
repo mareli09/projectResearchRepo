@@ -14,6 +14,11 @@ class SubmissionPolicy
 {
     public function view(User $user, Submission $s): bool
     {
+        // A draft is the student's alone until it is submitted.
+        if ($s->status === 'draft') {
+            return $s->student_user_id === $user->id;
+        }
+
         return $s->student_user_id === $user->id
             || $s->adviser_user_id === $user->id
             || $this->coordinates($user, $s)
