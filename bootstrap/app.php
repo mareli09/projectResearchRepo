@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ApplyRuntimeSettings;
 use App\Http\Middleware\EnsureAccountCanSignIn;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -16,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Runs on every web request, so a deactivated or expired account is signed out at once.
         $middleware->web(append: [EnsureAccountCanSignIn::class]);
+        // Idle session timeout from System settings, applied before the session starts.
+        $middleware->web(prepend: [ApplyRuntimeSettings::class]);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,

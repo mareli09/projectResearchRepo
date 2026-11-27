@@ -14,6 +14,7 @@ Web-Based Research Repository System with Data Analytics and Visualization Using
 - **Sprint 4 (Python service, M5 similarity screening):** done. See "Sprint 4" below.
 - **Sprint 5 (M4 full-paper requests, search and view logging):** done. See "Sprint 5" below.
 - **Sprint 6 (M6 clustering, LLM suggestions):** done. See "Sprint 6" below.
+- **System settings, theme saving, clustering schedule (parts of Sprints 8 and 9):** done. See "Settings, theme and schedule" below.
 
 ## Stack
 
@@ -221,7 +222,7 @@ How the design screens work:
 - **Sample data where the module is not built yet**, from `app/Domain/Site/DesignData.php`, and the page says "sample". This covers submissions, notifications, full-paper requests, clustering runs, AI performance figures, backups and jobs. Each module replaces its part of that class in its sprint.
 - **Buttons that do not work yet** use `<x-button preview="Sprint N">`. They never submit; a toast says which sprint builds them. Every such page shows a "Design preview" note.
 - **Themes before clustering:** until the first K-Means run (Sprint 6), `app/Domain/Site/Corpus.php` gives each record the prototype theme that best matches its keywords. This drives the theme map, theme filter and heat map.
-- **Theme picker [Not in manuscript]:** the Theme button in the top bar has 8 swatches, a custom color, and System, Light or Dark. The accent colors are computed from the chosen hue (lightness capped at 36% in light mode for WCAG AA). The choice is kept in the browser; saving it to the user account comes in Sprint 8.
+- **Theme picker [Not in manuscript]:** the Theme button in the top bar has 8 swatches, a custom color, and System, Light or Dark. The accent colors are computed from the chosen hue (lightness capped at 36% in light mode for WCAG AA). Guests keep the choice in the browser. For signed-in users it is saved to the account.
 - **Charts:** `<x-chart>` holds an ECharts option. Colors are written as `var(--token)` so charts follow the theme and redraw when it changes. On phones the legend moves below the chart. Clicking a segment opens the matching search: the records behind it.
 - **Styles:** component styles are ported from the prototype into `resources/css/design.css` (stepper, score bar, KPI card, tables, landing page, CMS, theme popover, responsive rules at 1000, 820 and 520 px).
 - **Navigation:** the menu for each role is in `app/Support/Navigation.php`. `/dashboard` sends each role to its home page. The Sprint 0 component page moved to `/styleguide` (local only).
@@ -345,3 +346,28 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
 - **Searches:** every search in the catalog and in Search is written to `search_logs`, including searches with no results. A search is a query or a facet on the first page. Signed-in searches are also written to the activity log as `search`.
 - **"Searches with no or few results"** (Table 7 visual 13) now reads `search_logs`: terms with 3 or fewer results in the last 90 days, most searched first.
 - **Views:** every study view (guest or signed in) adds to the record's view count and writes a `view` entry.
+
+## Settings, theme and schedule
+
+**System settings** (`/admin/settings`, System administrator):
+- **Six forms:** similarity thresholds, clustering schedule, LLM, files and abstracts, sessions and sign-in, and recovery channels.
+- **Validation:** for example, the review threshold must be lower than the duplicate threshold. Errors show next to the field.
+- **Logging:** each saved change goes to the activity log as `setting`, with the old and new values. A save that changes nothing is not logged.
+- **Changes apply at once:**
+  - Screening uses the new thresholds.
+  - Uploads use the new size and word limits.
+  - The idle session timeout is set before the session starts (`ApplyRuntimeSettings`).
+  - Fortify's sign-in limiter uses the number of attempts (`SettingsLoginRateLimiter`).
+  - The LLM switch, timeout and rate apply to the OpenAI client.
+  - A recovery channel that is switched off is no longer offered for codes.
+
+**Theme [Not in manuscript]:** signed-in users' color and appearance are saved to `users.theme_color` and `theme_mode` (`POST /account/theme`) and follow them to every device. Each change is logged as `theme`.
+
+**Clustering schedule:**
+- `php artisan clustering:scheduled` runs every night at 2:30 AM. Production needs the cron entry for `schedule:run`.
+- It queues a run when one is due:
+  - when there is no run yet
+  - for "Every semester", 150 days after the last run
+  - for "Every month", 28 days after the last run
+  - after the set number of new published records
+- The URDC still confirms each run. Use `--dry-run` to check without queuing.

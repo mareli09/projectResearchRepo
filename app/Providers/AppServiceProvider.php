@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Accounts\SettingsLoginRateLimiter;
+use App\Domain\Admin\SystemSettings;
 use App\Domain\Audit\Listeners\LogAuthEvents;
 use App\Domain\Audit\Listeners\LogSentMail;
 use App\Models\Setting;
@@ -22,6 +24,7 @@ use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Fortify\LoginRateLimiter;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -46,14 +49,16 @@ class AppServiceProvider extends ServiceProvider
                 return new OpenAiLlmClient(
                     apiKey: (string) config('tua.llm.api_key'),
                     model: (string) (config('tua.llm.model') ?: 'gpt-4o-mini'),
-                    timeout: (int) config('tua.llm.timeout'),
-                    ratePerMinute: (int) config('tua.llm.rate_per_minute'),
+                    timeout: SystemSettings::llmTimeout(),
+                    ratePerMinute: SystemSettings::llmRate(),
                 );
             }
 
             return new NullLlmClient;
         });
         $this->app->singleton(SmsClient::class, NullSmsClient::class);
+        // Sign-in attempts before the pause come from System settings (§7 M9).
+        $this->app->singleton(LoginRateLimiter::class, SettingsLoginRateLimiter::class);
     }
 
     /**

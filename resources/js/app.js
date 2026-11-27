@@ -140,7 +140,7 @@ function themePopHtml() {
         <span class="flex gap-2 items-center"><input type="color" id="tp-custom" value="${esc(cur)}" data-theme-custom style="width:44px;height:32px;border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:2px"><span class="mono">${esc(cur)}</span></span></label>`
         : '<p class="text-[13px] text-muted">The URDC has set one theme color for everyone.</p>'}
       <div><div class="eyebrow mb-1.5">Appearance</div><div class="seg">${[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']].map(([m, l]) => `<button type="button" aria-pressed="${(t.mode || 'system') === m}" data-theme-mode="${m}">${l}</button>`).join('')}</div></div>
-      <div class="ph text-[13px]"><span class="text-muted">Saved on this device.</span>${t.color || t.mode ? '<a href="#" data-theme-reset>Reset</a>' : ''}</div>
+      <div class="ph text-[13px]"><span class="text-muted">${document.documentElement.dataset.themeSave ? 'Saved to your account.' : 'Saved on this device.'}</span>${t.color || t.mode ? '<a href="#" data-theme-reset>Reset</a>' : ''}</div>
     </div>`;
 }
 function closeThemePop() { document.getElementById('theme-pop')?.remove(); }
@@ -159,7 +159,7 @@ document.addEventListener('click', (e) => {
     if (sw) { T.set({ ...T.get(), color: sw.dataset.themeColor }); refreshThemePop(); redrawCharts(); return; }
     const md = e.target.closest('[data-theme-mode]');
     if (md) { T.set({ ...T.get(), mode: md.dataset.themeMode }); refreshThemePop(); redrawCharts(); return; }
-    if (e.target.closest('[data-theme-reset]')) { e.preventDefault(); localStorage.removeItem('tua-theme-user'); T.apply(); refreshThemePop(); redrawCharts(); return; }
+    if (e.target.closest('[data-theme-reset]')) { e.preventDefault(); T.set({}); refreshThemePop(); redrawCharts(); return; }
     if (e.target.closest('[data-theme-close]') || (!e.target.closest('#theme-pop'))) closeThemePop();
 });
 document.addEventListener('input', (e) => {

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccessRequestController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\ActivationController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\Design\UrdcController;
 use App\Http\Controllers\LibraryController;
 use App\Http\Controllers\RecordFileController;
 use App\Http\Controllers\SiteController;
+use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\Urdc\ImportController;
 use App\Http\Controllers\Urdc\RecordController;
 use App\Models\AcademicUnit;
@@ -71,6 +73,7 @@ Route::middleware('auth')->group(function () {
 
     // Account and recovery (every role)
     Route::get('/account', [AccountController::class, 'show'])->name('account');
+    Route::post('/account/theme', [ThemeController::class, 'update'])->middleware('throttle:30,1')->name('account.theme');
     Route::prefix('/account/recovery/{kind}')->where(['kind' => AccountController::kindPattern()])->group(function () {
         Route::post('/', [AccountController::class, 'storeContact'])->middleware('throttle:recovery')->name('account.contact.store');
         Route::post('/resend', [AccountController::class, 'resendCode'])->middleware('throttle:recovery')->name('account.contact.resend');
@@ -164,7 +167,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('role:'.User::ROLE_SYSADMIN)->prefix('/admin')->name('admin.')->group(function () {
         Route::get('/health', [SysadminController::class, 'health'])->name('health');
         Route::get('/services', [SysadminController::class, 'services'])->name('services');
-        Route::get('/settings', [SysadminController::class, 'settings'])->name('settings');
+        Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
+        Route::post('/settings/{group}', [SettingsController::class, 'update'])->name('settings.update');
         Route::get('/backups', [SysadminController::class, 'backups'])->name('backups');
         Route::get('/evaluators', [SysadminController::class, 'evaluators'])->name('evaluators');
     });

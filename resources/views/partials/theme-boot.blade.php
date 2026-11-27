@@ -1,17 +1,23 @@
 {{--
   Theme color and appearance (CLAUDE.md §9), applied before first paint so the page never flashes.
-  Site default and "let users pick" come from the landing page settings; the user's own choice is
-  kept in localStorage (guests) — saving it to users.theme_color / theme_mode comes with Sprint 8.
+  Site default and "let users pick" come from the landing page settings. Guests keep their choice in
+  localStorage; for signed-in users it is saved to users.theme_color / theme_mode and wins on every device.
 --}}
 @php
     $themeDefault = \App\Domain\Site\SiteContent::published()['theme']['color'] ?? config('tua.theme.default');
     $themeAllowUser = (bool) (\App\Domain\Site\SiteContent::published()['theme']['allowUser'] ?? true) && config('tua.features.theme_picker');
+    $themeUser = auth()->user();
 @endphp
 <script>
 (function () {
     var D = document.documentElement;
     D.dataset.defaultColor = @json($themeDefault);
     D.dataset.allowUser = @json($themeAllowUser ? '1' : '0');
+    @if ($themeUser)
+    // Signed in: the saved choice on the account is the source of truth.
+    D.dataset.themeSave = @json(route('account.theme'));
+    try { localStorage.setItem('tua-theme-user', JSON.stringify(@json(array_filter(['color' => $themeUser->theme_color, 'mode' => $themeUser->theme_mode === 'system' ? null : $themeUser->theme_mode])))); } catch (e) {}
+    @endif
 
     function hex2hsl(h) {
         h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
@@ -24,7 +30,21 @@
 
     window.tuaTheme = {
         get: function () { try { return JSON.parse(localStorage.getItem('tua-theme-user')) || {}; } catch (e) { return {}; } },
-        set: function (t) { try { localStorage.setItem('tua-theme-user', JSON.stringify(t)); } catch (e) {} window.tuaTheme.apply(); },
+        set: function (t) {
+            try { localStorage.setItem('tua-theme-user', JSON.stringify(t)); } catch (e) {}
+            window.tuaTheme.apply();
+            window.tuaTheme.save(t);
+        },
+        save: function (t) {
+            if (!D.dataset.themeSave) return;
+            clearTimeout(window.tuaTheme._t);
+            window.tuaTheme._t = setTimeout(function () {
+                var m = document.querySelector('meta[name="csrf-token"]');
+                fetch(D.dataset.themeSave, { method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': m ? m.content : '' },
+                    body: JSON.stringify({ color: t.color || null, mode: t.mode || 'system' }) }).catch(function () {});
+            }, 400);
+        },
         color: function () { var t = window.tuaTheme.get(); return (D.dataset.allowUser === '1' && t.color) || D.dataset.defaultColor; },
         apply: function () {
             var hs = hex2hsl(window.tuaTheme.color()), h = hs[0], s = Math.min(hs[1], .75);

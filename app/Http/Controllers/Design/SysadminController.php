@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Design;
 use App\Domain\Site\DesignData;
 use App\Http\Controllers\Controller;
 use App\Models\MailLog;
-use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -34,23 +33,6 @@ class SysadminController extends Controller
         return view('admin.services', [
             'calls' => DesignData::serviceCalls(),
             'llmEnabled' => (bool) config('tua.llm.enabled'),
-            'fields' => config('tua.llm.fields_sent'),
-        ]);
-    }
-
-    public function settings(): View
-    {
-        $get = fn (string $k, mixed $d) => Setting::valueOf($k, $d);
-
-        return view('admin.settings', [
-            'thresholds' => $get('screening.thresholds', ['duplicate' => .8, 'review' => .6]),
-            'schedule' => $get('clustering.schedule', ['every' => 'semester', 'after_new_records' => 50]),
-            'maxMb' => $get('files.max_mb', 20),
-            'wordLimit' => $get('repository.abstract_word_limit', 250),
-            'session' => $get('session.idle_minutes', 30),
-            'attempts' => $get('auth.login_max_attempts', 5),
-            'llm' => ['enabled' => $get('llm.enabled', false), 'timeout' => $get('llm.timeout', 8), 'rate' => $get('llm.rate_per_minute', 60)],
-            'recovery' => $get('recovery.channels', ['tua_email' => true, 'recovery_email' => true, 'sms' => false]),
             'fields' => config('tua.llm.fields_sent'),
         ]);
     }

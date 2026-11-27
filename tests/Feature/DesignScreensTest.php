@@ -92,7 +92,7 @@ it('marks actions that are not built yet as design previews', function () {
         ->assertSee('Submit for adviser endorsement')
         ->assertDontSee('data-preview="Sprint 6"', false)
         ->assertSee('LLM suggestion');
-    $this->actingAs(demo(User::ROLE_SYSADMIN))->get('/admin/settings')->assertSee('data-preview="Sprint 9"', false);
+    $this->actingAs(demo(User::ROLE_SYSADMIN))->get('/admin/backups')->assertSee('data-preview="Sprint 9"', false);
 });
 
 it('filters search by facets on real records', function () {

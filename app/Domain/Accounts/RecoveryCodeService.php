@@ -2,6 +2,7 @@
 
 namespace App\Domain\Accounts;
 
+use App\Domain\Admin\SystemSettings;
 use App\Models\RecoveryCode;
 use App\Models\User;
 use App\Notifications\Channels\SmsChannel;
@@ -28,11 +29,11 @@ final class RecoveryCodeService
     {
         $channels = ['tua_email' => Mask::email($user->email)];
 
-        if (config('tua.features.recovery_email') && $user->recovery_email && $user->recovery_email_verified_at) {
+        if (SystemSettings::recoveryEnabled('recovery_email') && $user->recovery_email && $user->recovery_email_verified_at) {
             $channels['recovery_email'] = Mask::email($user->recovery_email);
         }
 
-        if (config('tua.features.recovery_sms') && $user->recovery_mobile && $user->recovery_mobile_verified_at) {
+        if (SystemSettings::recoveryEnabled('sms') && $user->recovery_mobile && $user->recovery_mobile_verified_at) {
             $channels['sms'] = Mask::mobile($user->recovery_mobile);
         }
 
