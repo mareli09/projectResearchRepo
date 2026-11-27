@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Domain\Screening\TestSet;
 use App\Models\AccessRequest;
 use App\Models\Cluster;
 use App\Models\ClusterRun;
@@ -34,9 +35,9 @@ final class Navigation
     public const ICONS = [
         'student.home' => 'home', 'student.submit' => 'upload', 'student.status' => 'status', 'student.summary' => 'pie',
         'adviser.queue' => 'inbox', 'adviser.review' => 'review', 'adviser.supervised' => 'users',
-        'coordinator.queue' => 'inbox', 'coordinator.screening' => 'compare', 'coordinator.themes' => 'tag', 'coordinator.analytics' => 'chart',
+        'coordinator.queue' => 'inbox', 'coordinator.screening' => 'compare', 'coordinator.themes' => 'tag', 'coordinator.analytics' => 'chart', 'coordinator.testset' => 'compare', 'urdc.testset' => 'check',
         'urdc.analytics' => 'chart', 'urdc.approvals' => 'check', 'urdc.requests' => 'key', 'urdc.records' => 'folder', 'urdc.import' => 'import',
-        'urdc.clustering' => 'cluster', 'themes.review' => 'tag', 'urdc.ai' => 'ai', 'activity' => 'log', 'admin.users' => 'users', 'site.content' => 'globe',
+        'urdc.clustering' => 'cluster', 'urdc.tasks' => 'clock', 'themes.review' => 'tag', 'urdc.ai' => 'ai', 'activity' => 'log', 'admin.users' => 'users', 'site.content' => 'globe',
         'admin.health' => 'heart', 'admin.services' => 'shield', 'admin.settings' => 'settings', 'admin.backups' => 'database', 'admin.evaluators' => 'clock',
         'notifications' => 'bell', 'search' => 'search', 'account' => 'user',
     ];
@@ -71,7 +72,8 @@ final class Navigation
             'coordinator' => ['Cluster work' => [
                 ['Review queue', 'coordinator.queue', $clusterId ? (Submission::where('research_cluster_id', $clusterId)->where('status', 'endorsed')->count() ?: null) : null],
                 ['Similarity review', 'coordinator.screening', null], ['Theme labels', 'coordinator.themes', self::pendingLabels()],
-                ['Cluster analytics', 'coordinator.analytics', null], ['Notifications', 'notifications', $unreadCount],
+                ['Cluster analytics', 'coordinator.analytics', null], ['Label test pairs', 'coordinator.testset', self::testPairsWaiting($user)],
+                ['Notifications', 'notifications', $unreadCount],
             ]] + $library + $account,
             'urdc' => [
                 'Overview' => [
@@ -83,7 +85,7 @@ final class Navigation
                 'Repository' => [
                     ['Records and metadata', 'urdc.records', null], ['Bulk import', 'urdc.import', null],
                     ['Theme clustering', 'urdc.clustering', null], ['Theme labels', 'themes.review', self::pendingLabels()],
-                    ['AI performance', 'urdc.ai', null],
+                    ['AI performance', 'urdc.ai', null], ['Labeled test set', 'urdc.testset', null], ['Dashboard tasks', 'urdc.tasks', null],
                 ],
                 'Monitoring' => [['Activity log', 'activity', null], ['Account help', 'admin.users', null]],
                 'Website' => [['Landing page content', 'site.content', null]],
@@ -134,5 +136,11 @@ final class Navigation
         return Route::has($route)
             && ! ($route === 'site.content' && ! config('tua.features.landing_cms'))
             && ! ($route === 'admin.evaluators' && ! config('tua.evaluation_copy') && ! app()->isLocal() && ! app()->runningUnitTests());
+    }
+
+    /** Test pairs this coordinator can still label (labeled test set, §7 M5). */
+    public static function testPairsWaiting(User $user): ?int
+    {
+        return once(fn () => TestSet::waitingFor($user) ?: null);
     }
 }

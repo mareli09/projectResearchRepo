@@ -6,14 +6,20 @@
 <x-layouts.app title="AI performance">
     <x-page-head eyebrow="M5 · M6 · M7 · Effectiveness of the AI features" title="AI performance"
         lead="Measures from Chapter 2: duplicate screening against the coordinators' labeled pairs, clustering quality, and what users did with the LLM suggestions.">
-        <x-slot:actions><x-button :href="route('urdc.ai.export')">Export report (CSV)</x-button></x-slot:actions>
+        <x-slot:actions><x-button :href="route('urdc.ai.export', ['source' => $source])">Export report (CSV)</x-button></x-slot:actions>
     </x-page-head>
 
     <div class="g2">
         <x-panel title="Duplicate screening">
             <x-slot:actions><span class="text-muted small">{{ count($pairs) }} labeled pairs · {{ $duplicates }} duplicates</span></x-slot:actions>
+            <div class="seg mb-3" role="group" aria-label="Labeled pairs to measure">
+                <a href="{{ route('urdc.ai', ['source' => 'test']) }}" aria-pressed="{{ $source === 'test' ? 'true' : 'false' }}" class="btn btn-sm {{ $source === 'test' ? 'btn-primary' : '' }}">Labeled test set ({{ $testCount }})</a>
+                <a href="{{ route('urdc.ai', ['source' => 'decisions']) }}" aria-pressed="{{ $source === 'decisions' ? 'true' : 'false' }}" class="btn btn-sm {{ $source === 'decisions' ? 'btn-primary' : '' }}">Coordinator decisions ({{ $decisionCount }})</a>
+            </div>
+            <p class="small text-muted mb-2">{{ $source === 'test' ? 'Reference labels from the labeled test set: the label at least 2 of 3 coordinators gave, without seeing the score.' : 'Calibration labels recorded with everyday coordinator decisions.' }}
+                @if ($testCount < 100) The evaluation needs at least 100 decided test pairs, about half duplicates: see <a href="{{ route('urdc.testset') }}">Labeled test set</a>.@endif</p>
             @if ($pairs === [])
-                <x-empty-state title="No labeled pairs yet">Each coordinator decision records a calibration label (duplicate or distinct). The evaluation needs at least 100 pairs, about half duplicates.</x-empty-state>
+                <x-empty-state title="No labeled pairs yet">{{ $source === 'test' ? 'Build the pairs under Labeled test set; coordinators label them under Label test pairs.' : 'Each coordinator decision records a calibration label (duplicate or distinct).' }} The evaluation needs at least 100 pairs, about half duplicates.</x-empty-state>
             @else
                 <div x-data="{
                         pairs: @js(array_map(fn ($p) => [$p['score'], $p['duplicate']], $pairs)),

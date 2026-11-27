@@ -41,6 +41,11 @@ class HttpAnalyticsClient implements AnalyticsClient
         return $this->post('/related', ['id' => $id, 'k' => $k]);
     }
 
+    public function pair(array $fields, int|string $recordId): array
+    {
+        return $this->post('/pair', $fields + ['record_id' => $recordId]);
+    }
+
     public function cluster(int $kMin = 2, int $kMax = 15, ?int $k = null): array
     {
         return $this->post('/cluster', ['k_min' => $kMin, 'k_max' => $kMax, 'k' => $k]);

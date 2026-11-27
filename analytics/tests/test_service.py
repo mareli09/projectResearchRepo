@@ -119,6 +119,17 @@ def test_screen_returns_top_k_with_shared_terms(index):
     assert r["top_terms"]
 
 
+def test_pair_scores_one_text_against_one_record(index):
+    same = index.pair(DOCS[0], 1)
+    assert same["score"] == pytest.approx(1.0, abs=1e-4)
+    other = index.pair(DOCS[0], 2)
+    assert other["score"] < 0.2
+    # The same score as screening gives for that record.
+    screened = {m["id"]: m["score"] for m in index.screen(DOCS[3], k=6)["matches"]}
+    assert index.pair(DOCS[3], 5)["score"] == pytest.approx(screened.get(5, 0.0), abs=1e-4)
+    assert index.pair(DOCS[0], 999) is None
+
+
 def test_related_excludes_itself(index):
     r = index.related(1, k=3)
     assert all(m["id"] != 1 for m in r["matches"])

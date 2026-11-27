@@ -15,6 +15,7 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\ClusteringController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardTaskController;
 use App\Http\Controllers\Design\AdviserController;
 use App\Http\Controllers\Design\CoordinatorController;
 use App\Http\Controllers\Design\SiteContentController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\LibraryController;
 use App\Http\Controllers\PwaController;
 use App\Http\Controllers\RecordFileController;
 use App\Http\Controllers\SiteController;
+use App\Http\Controllers\TestSetController;
 use App\Http\Controllers\ThemeController;
 use App\Http\Controllers\Urdc\ImportController;
 use App\Http\Controllers\Urdc\RecordController;
@@ -158,6 +160,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/screening', [CoordinatorController::class, 'decide'])->name('decide');
         Route::get('/themes', [ClusteringController::class, 'themes'])->name('themes');
         Route::get('/analytics', [CoordinatorController::class, 'analytics'])->name('analytics');
+        Route::get('/test-set', [TestSetController::class, 'labelPage'])->name('testset');
+        Route::post('/test-set/{pair}', [TestSetController::class, 'label'])->middleware('throttle:60,1')->name('testset.label');
         Route::get('/analytics/export/{format}', [CoordinatorController::class, 'export'])->where('format', 'xlsx|csv|pdf')->middleware('throttle:20,1')->name('analytics.export');
     });
 
@@ -173,6 +177,16 @@ Route::middleware('auth')->group(function () {
         Route::post('/clustering', [ClusteringController::class, 'run'])->middleware('throttle:6,1')->name('clustering.run');
         Route::post('/clustering/{run}/confirm', [ClusteringController::class, 'confirm'])->name('clustering.confirm');
         Route::get('/ai-performance', [AiPerformanceController::class, 'index'])->name('ai');
+        Route::get('/test-set', [TestSetController::class, 'index'])->name('testset');
+        Route::get('/tasks', [DashboardTaskController::class, 'index'])->name('tasks');
+        Route::post('/tasks', [DashboardTaskController::class, 'update'])->name('tasks.update');
+        Route::post('/tasks/reset', [DashboardTaskController::class, 'reset'])->name('tasks.reset');
+        Route::get('/tasks/export', [DashboardTaskController::class, 'export'])->name('tasks.export');
+        Route::post('/test-set/sample', [TestSetController::class, 'sample'])->middleware('throttle:6,1')->name('testset.sample');
+        Route::post('/test-set/import', [TestSetController::class, 'import'])->middleware('throttle:6,1')->name('testset.import');
+        Route::post('/test-set/score', [TestSetController::class, 'score'])->middleware('throttle:6,1')->name('testset.score');
+        Route::get('/test-set/export', [TestSetController::class, 'export'])->name('testset.export');
+        Route::post('/test-set/{pair}/remove', [TestSetController::class, 'destroy'])->name('testset.remove');
         Route::get('/ai-performance/export', [AiPerformanceController::class, 'export'])->name('ai.export');
     });
 
@@ -192,6 +206,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/evaluators', [EvaluatorController::class, 'store'])->middleware('throttle:20,1')->name('evaluators.store');
         Route::post('/evaluators/{user}/end', [EvaluatorController::class, 'end'])->name('evaluators.end');
     });
+
+    // Dashboard task mode (§7 M7): whoever takes part starts and finishes each task; timed on the server.
+    Route::post('/tasks/{no}/start', [DashboardTaskController::class, 'start'])->whereNumber('no')->name('tasks.start');
+    Route::post('/tasks/{no}/finish', [DashboardTaskController::class, 'finish'])->whereNumber('no')->name('tasks.finish');
 
     // Theme labels: coordinators and the URDC accept, edit or reject LLM label suggestions (§4, §7 M6).
     Route::middleware('role:'.User::ROLE_COORDINATOR.'|'.User::ROLE_URDC)->group(function () {

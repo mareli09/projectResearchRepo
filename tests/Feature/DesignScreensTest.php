@@ -27,8 +27,8 @@ function demo(string $role): User
 const SCREENS = [
     User::ROLE_STUDENT => ['/student', '/student/submit', '/student/status', '/student/status?id=SUB-0128', '/student/summary'],
     User::ROLE_ADVISER => ['/adviser', '/adviser/review', '/adviser/review?id=SUB-0139', '/adviser/supervised'],
-    User::ROLE_COORDINATOR => ['/coordinator', '/coordinator/screening', '/coordinator/screening?id=SUB-0136&match=2', '/coordinator/themes', '/coordinator/analytics', '/coordinator/analytics?college=CEIS&year=2024'],
-    User::ROLE_URDC => ['/urdc/analytics', '/urdc/analytics?college=CEIS&year=2024&theme=3&sdg=4', '/urdc/approvals', '/urdc/requests', '/urdc/clustering', '/urdc/ai-performance', '/site-content'],
+    User::ROLE_COORDINATOR => ['/coordinator', '/coordinator/screening', '/coordinator/screening?id=SUB-0136&match=2', '/coordinator/themes', '/coordinator/analytics', '/coordinator/analytics?college=CEIS&year=2024', '/coordinator/test-set'],
+    User::ROLE_URDC => ['/urdc/analytics', '/urdc/analytics?college=CEIS&year=2024&theme=3&sdg=4', '/urdc/approvals', '/urdc/requests', '/urdc/clustering', '/urdc/ai-performance', '/site-content', '/urdc/test-set', '/urdc/tasks'],
     User::ROLE_SYSADMIN => ['/admin/health', '/admin/services', '/admin/settings', '/admin/backups', '/admin/evaluators', '/site-content'],
 ];
 

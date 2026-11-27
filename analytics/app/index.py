@@ -117,6 +117,16 @@ class Index:
             "vectorizer_version": self.version,
         }
 
+    def pair(self, r: dict, record_id) -> dict | None:
+        """Cosine score of one text against one stored record (labeled test set, CLAUDE.md §7 M5)."""
+        assert self.matrix is not None
+        if record_id not in self.ids:
+            return None
+        row = self.ids.index(record_id)
+        q = self._vector(r)
+        score = float((self.matrix.getrow(row) @ q.T).toarray().ravel()[0])
+        return {"score": round(max(score, 0.0), 4), "shared_terms": self._shared_terms(q, row), "vectorizer_version": self.version}
+
     def related(self, record_id, k: int = 5) -> dict:
         assert self.matrix is not None
         if record_id not in self.ids:

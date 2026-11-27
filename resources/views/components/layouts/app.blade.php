@@ -91,6 +91,7 @@
         <main id="main" class="app-main" @unless ($me) style="grid-column: 1 / -1" @endunless>
             <div class="page">
                 <x-flash />
+                @include('partials.task-panel')
                 {{ $slot }}
             </div>
             <footer class="app-foot"><span>© {{ date('Y') }} Trinity University of Asia · URDC</span><span>Times in Asia/Manila</span></footer>

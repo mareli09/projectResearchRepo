@@ -52,6 +52,13 @@ class RelatedIn(BaseModel):
     k: int = Field(default=5, ge=1, le=20)
 
 
+class PairIn(BaseModel):
+    title: str | None = None
+    abstract: str | None = None
+    keywords: list[str] = Field(default_factory=list)
+    record_id: int | str
+
+
 class ClusterIn(BaseModel):
     k_min: int = Field(default=2, ge=2, le=30)
     k_max: int = Field(default=15, ge=2, le=30)
@@ -88,6 +95,16 @@ def screen(body: ScreenIn):
     if not INDEX.ready:
         return _not_fitted()
     return INDEX.screen(body.model_dump(), k=body.k, exclude_id=body.exclude_id)
+
+
+@app.post("/pair")
+def pair(body: PairIn):
+    if not INDEX.ready:
+        return _not_fitted()
+    out = INDEX.pair(body.model_dump(exclude={"record_id"}), body.record_id)
+    if out is None:
+        return JSONResponse(status_code=404, content={"error": "unknown_record", "detail": "The record is not in the index."})
+    return out
 
 
 @app.post("/related")
