@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Domain\Admin\Backups;
 use App\Domain\Admin\SystemHealth;
 use App\Domain\Audit\Audit;
 use App\Domain\Audit\AuditEvent;
@@ -34,6 +35,7 @@ class HealthController extends Controller
             'analytics' => $analytics,
             'llm' => SystemHealth::llmConfigured(),
             'jobs' => SystemHealth::jobs(),
+            'backup' => Backups::lastRun(),
         ]);
     }
 
@@ -57,7 +59,7 @@ class HealthController extends Controller
         return back()->with('status', $n ? "{$n} failed jobs were put back on the queue." : 'There are no failed jobs.');
     }
 
-    public function test(Request $request, string $service): RedirectResponse
+    public function test(Request $request, string $service, LlmClient $llm): RedirectResponse
     {
         $by = $request->user();
 
@@ -69,7 +71,6 @@ class HealthController extends Controller
         }
 
         if ($service === 'llm') {
-            $llm = app(LlmClient::class);
             if ($llm instanceof NullLlmClient) {
                 return back()->with('status', 'The LLM is turned off (LLM_ENABLED, LLM_API_KEY or the System settings switch), so the top-terms fallback is used.');
             }

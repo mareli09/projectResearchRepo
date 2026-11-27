@@ -7,7 +7,6 @@ use App\Domain\Llm\Suggestions;
 use App\Domain\Repository\FileSlots;
 use App\Domain\Repository\RepositorySettings;
 use App\Domain\Site\Corpus;
-use App\Domain\Site\DesignData;
 use App\Domain\Submissions\SubmissionPresenter;
 use App\Domain\Submissions\SubmissionRules;
 use App\Domain\Submissions\Workflow;
@@ -52,7 +51,6 @@ class StudentController extends Controller
         return view('student.submit', [
             'slots' => FileSlots::slots(),
             'sdgs' => Sdg::orderBy('id')->get(),
-            'suggestion' => DesignData::metadataSuggestion(),
             'programs' => Program::where('academic_unit_id', $user->academic_unit_id)->orderBy('name')->get(),
             'advisers' => User::role(User::ROLE_ADVISER)->orderByRaw('academic_unit_id = ? DESC', [$user->academic_unit_id])->orderBy('name')->get(['id', 'name', 'academic_unit_id']),
             'maxMb' => RepositorySettings::maxFileMb(),

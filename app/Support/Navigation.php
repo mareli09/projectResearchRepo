@@ -101,13 +101,17 @@ final class Navigation
         };
 
         // Hide switched-off features and routes that do not exist.
+        $shown = [];
+        // A group whose items are all hidden gets no key, so no empty heading is shown.
         foreach ($groups as $g => $items) {
-            $groups[$g] = array_values(array_filter($items, fn ($i) => Route::has($i[1])
-                && ! ($i[1] === 'site.content' && ! config('tua.features.landing_cms'))
-                && ! ($i[1] === 'admin.evaluators' && ! config('tua.evaluation_copy') && ! app()->isLocal() && ! app()->runningUnitTests())));
+            foreach ($items as $i) {
+                if (self::visible((string) $i[1])) {
+                    $shown[$g][] = $i;
+                }
+            }
         }
 
-        return array_filter($groups, fn (array $items) => count($items) > 0);
+        return $shown;
     }
 
     /** Theme labels of the newest finished or current run that nobody has confirmed yet. */
@@ -122,5 +126,13 @@ final class Navigation
     public static function unread(User $user): int
     {
         return $user->unreadNotifications()->count();
+    }
+
+    /** Hides switched-off features and routes that do not exist. */
+    private static function visible(string $route): bool
+    {
+        return Route::has($route)
+            && ! ($route === 'site.content' && ! config('tua.features.landing_cms'))
+            && ! ($route === 'admin.evaluators' && ! config('tua.evaluation_copy') && ! app()->isLocal() && ! app()->runningUnitTests());
     }
 }

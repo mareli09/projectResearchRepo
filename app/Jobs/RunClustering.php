@@ -22,7 +22,11 @@ class RunClustering implements ShouldQueue
 
     public int $timeout = 900;
 
-    public function __construct(public readonly ClusterRun $run) {}
+    public function __construct(public readonly ClusterRun $run)
+    {
+        // Longer than the 90-second retry window of the default queue (config/queue.php 'long').
+        $this->onConnection((string) config('tua.long_queue'))->onQueue('long');
+    }
 
     public function handle(ClusterRunner $runner): void
     {

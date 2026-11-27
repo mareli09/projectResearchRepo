@@ -41,6 +41,25 @@ return [
             'visibility' => 'private',
         ],
 
+        // Encrypted backups on this server (CLAUDE.md §7 M9). Private, never served.
+        'backups' => [
+            'driver' => 'local',
+            'root' => storage_path('app/backups'),
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
+        // Off-server copy: a mounted share outside this server (for example an NFS or SMB mount
+        // the ICT Office provides). Leave BACKUP_OFFSITE_PATH empty to turn it off.
+        'backups_offsite' => [
+            'driver' => 'local',
+            'root' => env('BACKUP_OFFSITE_PATH') ?: storage_path('app/backups-offsite-unset'),
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),

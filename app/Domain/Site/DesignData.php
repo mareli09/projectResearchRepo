@@ -3,10 +3,9 @@
 namespace App\Domain\Site;
 
 /**
- * SAMPLE DATA for the design screens whose modules are not built yet (submissions, notifications,
- * full-paper requests, clustering runs, AI performance, backups, jobs). Ported from the prototype.
- * Each module replaces its part of this class with real data in its sprint (CLAUDE.md §18):
- * Sprint 3 submissions and notifications, 4 screening, 5 requests, 6 clustering, 7 analytics, 9 admin.
+ * Sample workflow data ported from the prototype. Every screen now reads real tables; this class
+ * only feeds WorkflowSampleSeeder (sample submissions, requests, runs, notifications and searches
+ * for the demo and evaluation copies) and holds the four step names of the stepper.
  */
 final class DesignData
 {
@@ -150,72 +149,6 @@ final class DesignData
         return $out;
     }
 
-    /** @return array<string, array{accepted: int, edited: int, rejected: int}> */
-    public static function llmStats(): array
-    {
-        return [
-            'keyword' => ['accepted' => 412, 'edited' => 96, 'rejected' => 71],
-            'sdg' => ['accepted' => 233, 'edited' => 41, 'rejected' => 38],
-            'type' => ['accepted' => 171, 'edited' => 9, 'rejected' => 6],
-            'label' => ['accepted' => 2, 'edited' => 3, 'rejected' => 0],
-        ];
-    }
-
-    /**
-     * Labeled test set result (SOP 3.1), sample.
-     *
-     * @return array{tp: int, fp: int, fn: int, tn: int}
-     */
-    public static function confusion(): array
-    {
-        return ['tp' => 46, 'fp' => 5, 'fn' => 4, 'tn' => 55];
-    }
-
-    /** @return list<array<string, mixed>> */
-    public static function backups(): array
-    {
-        $out = [];
-        foreach (range(26, 20) as $i => $day) {
-            $out[] = ['d' => "Nov {$day}, 2026 · 2:00 AM", 'size' => number_format(4.82 - $i * 0.03, 2).' GB', 'db' => number_format(38.4 - $i * 0.2, 1).' MB', 'ok' => $i !== 4, 'off' => $i !== 4];
-        }
-
-        return $out;
-    }
-
-    /** @return list<list<string>> */
-    public static function jobs(): array
-    {
-        return [
-            ['ScreenSubmission SUB-0141', 'ok', 'Done', '11:42 AM'], ['SuggestMetadata SUB-0141 (LLM)', 'ok', 'Done', '11:42 AM'],
-            ['RefreshKpiSnapshots', 'ok', 'Done', '2:15 AM'], ['SendWorkflowEmail SUB-0139', 'bad', 'Failed: SMTP timeout', '10:03 AM'],
-            ['SendWorkflowEmail SUB-0141', 'bad', 'Failed: SMTP timeout', '8:48 AM'], ['RunBackup', 'ok', 'Done', '2:00 AM'], ['CleanupExpiredTokens', 'ok', 'Done', '12:00 AM'],
-        ];
-    }
-
-    /** @return list<list<string>> */
-    public static function serviceCalls(): array
-    {
-        return [
-            ['11:42 AM', 'Core → Analytics', 'Screen SUB-0141', 'title, abstract, keywords', 'ok', '200 · 0.21 s'],
-            ['11:42 AM', 'Core → LLM', 'Suggest metadata for SUB-0141', 'title, abstract', 'ok', '200 · 1.4 s'],
-            ['10:15 AM', '10.21.0.9 → Analytics', 'Unknown', '—', 'bad', '401 · invalid token'],
-            ['9:03 AM', 'Core → LLM', 'Suggest metadata for SUB-0139', 'title, abstract', 'ok', '200 · 1.1 s'],
-            ['2:15 AM', 'Core → Analytics', 'Refresh KPI snapshots', 'record IDs and metadata', 'ok', '200 · 8.7 s'],
-            ['2:00 AM', 'Core → Database', 'Encrypted backup', 'full dump', 'ok', 'Done · 4.82 GB'],
-        ];
-    }
-
-    /** @return list<list<string>> */
-    public static function evaluators(): array
-    {
-        return [
-            ['eval01@tua.edu.ph', 'IT expert 01', 'Nov 10, 2026', 'Dec 15, 2026', 'Active'],
-            ['eval02@tua.edu.ph', 'IT expert 02', 'Nov 10, 2026', 'Dec 15, 2026', 'Active'],
-            ['eval03@tua.edu.ph', 'IT expert 03', 'Nov 11, 2026', 'Dec 15, 2026', 'Active'],
-            ['eval04@tua.edu.ph', 'IT expert 04', 'Oct 1, 2026', 'Nov 1, 2026', 'Expired'],
-        ];
-    }
-
     /**
      * Searches with no or few results (Table 7 visual 13), sample until search_logs fills (Sprint 5).
      *
@@ -224,19 +157,5 @@ final class DesignData
     public static function searchGaps(): array
     {
         return [['blockchain voting', 23, 0, 'Nov 18'], ['solar panel efficiency', 17, 1, 'Nov 17'], ['climate adaptation barangay', 14, 0, 'Nov 16'], ['augmented reality anatomy', 11, 2, 'Nov 15'], ['microplastics', 9, 0, 'Nov 12'], ['cybersecurity awareness', 8, 3, 'Nov 11']];
-    }
-
-    /**
-     * Sample LLM metadata suggestion shown on the submit form (Sprint 6 builds the real call).
-     *
-     * @return array<string, mixed>
-     */
-    public static function metadataSuggestion(): array
-    {
-        return [
-            'keywords' => [['v' => 'recommender system', 's' => 'accepted'], ['v' => 'tf-idf', 's' => 'accepted'], ['v' => 'senior high school', 's' => 'pending'], ['v' => 'cosine similarity', 's' => 'edited', 'e' => 'text similarity'], ['v' => 'application', 's' => 'rejected']],
-            'sdgs' => [['v' => 4, 's' => 'accepted'], ['v' => 9, 's' => 'pending']],
-            'type' => ['v' => 'Capstone project', 's' => 'pending'],
-        ];
     }
 }

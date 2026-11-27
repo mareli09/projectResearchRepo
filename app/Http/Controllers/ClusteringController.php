@@ -29,7 +29,7 @@ class ClusteringController extends Controller
     {
         $latest = ClusterRun::latest('id')->first();
         $run = self::reviewRun();
-        $scores = collect($run->params['scores'] ?? []);
+        $scores = collect($run?->scores() ?? []);
         $chosen = (int) ($run->k ?? 0);
 
         return view('urdc.clustering', [
@@ -118,9 +118,9 @@ class ClusteringController extends Controller
             $titles = DB::table('record_cluster')->join('research_records', 'research_records.id', '=', 'record_cluster.record_id')
                 ->where('record_cluster.cluster_id', $c->id)
                 ->orderByRaw('POW(record_cluster.x - ?, 2) + POW(record_cluster.y - ?, 2)', [$c->x, $c->y])
-                ->limit(3)->pluck('research_records.title')->all();
+                ->limit(3)->pluck('research_records.title')->map(fn ($t) => (string) $t)->all();
 
-            return [$c->id => $titles];
+            return [$c->id => array_values($titles)];
         });
     }
 }

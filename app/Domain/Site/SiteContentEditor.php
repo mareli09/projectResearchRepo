@@ -80,7 +80,11 @@ final class SiteContentEditor
         return SiteContentVersion::where('status', 'draft')->latest('id')->first();
     }
 
-    /** What the editor shows: the draft if there is one, else the published content. @return array<string, mixed> */
+    /**
+     * What the editor shows: the draft if there is one, else the published content.
+     *
+     * @return array<string, mixed>
+     */
     public static function working(): array
     {
         $draft = self::draftRow();

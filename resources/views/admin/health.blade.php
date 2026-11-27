@@ -1,6 +1,6 @@
 {{-- "System health" (CLAUDE.md §7 M9). Every figure is live. --}}
 @php
-    $attention = $failed || $mail['failed'] || ! $analytics['ok'];
+    $attention = $failed || $mail['failed'] || ! $analytics['ok'] || ($backup !== null && ! $backup['ok']);
     $rows = array_filter([
         $disk['used'] !== null ? ['Disk used'.($disk['total'] ? ' of '.$disk['total'].' GB on this machine' : ''), $disk['used'], $disk['total'] ?: \App\Domain\Admin\SystemHealth::SERVER_DISK_GB] : null,
         ['Uploaded research files', $filesGb, \App\Domain\Admin\SystemHealth::SERVER_DISK_GB],
@@ -14,7 +14,7 @@
     </x-page-head>
 
     <div class="g5 mb-4">
-        <x-kpi label="Web app" value="Online" tone="ok" />
+        <x-kpi label="Last backup" :value="$backup === null ? 'None yet' : ($backup['ok'] ? 'Completed' : 'Failed')" :tone="$backup === null ? 'warn' : ($backup['ok'] ? 'ok' : 'bad')" :hint="$backup['when'] ?? 'see Backups'" />
         <x-kpi label="Analytics service" :value="$analytics['ok'] ? 'Running' : 'Not reachable'" :tone="$analytics['ok'] ? 'ok' : 'bad'" :hint="$analytics['ok'] ? $analytics['ms'].' ms' : 'start it with composer analytics'" />
         <x-kpi label="LLM service" :value="$llm ? 'Turned on' : 'Turned off'" :tone="$llm ? 'ok' : 'warn'" :hint="$llm ? 'test it on Services and security' : 'top-terms fallback in use'" />
         <x-kpi label="Queue" :value="number_format($queue)" hint="jobs waiting" />

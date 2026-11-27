@@ -43,6 +43,17 @@ return [
             'after_commit' => false,
         ],
 
+        // TUA: long jobs (backups, restores, clustering). retry_after must be longer than the
+        // longest job, or a second worker would start the same job again while it still runs.
+        'long' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'long',
+            'retry_after' => 4000,
+            'after_commit' => false,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

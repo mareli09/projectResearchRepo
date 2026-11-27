@@ -6,6 +6,7 @@ use App\Domain\Accounts\SettingsLoginRateLimiter;
 use App\Domain\Admin\SystemSettings;
 use App\Domain\Audit\Listeners\LogAuthEvents;
 use App\Domain\Audit\Listeners\LogSentMail;
+use App\Listeners\BackupEvents;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AnalyticsClient\AnalyticsClient;
@@ -25,6 +26,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Fortify\LoginRateLimiter;
+use Spatie\Backup\Events\BackupHasFailed;
+use Spatie\Backup\Events\BackupWasSuccessful;
+use Spatie\Backup\Events\CleanupHasFailed;
+use Spatie\Backup\Events\UnhealthyBackupWasFound;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -75,6 +80,12 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Failed::class, [LogAuthEvents::class, 'failed']);
         Event::listen(Lockout::class, [LogAuthEvents::class, 'lockout']);
         Event::listen(MessageSent::class, LogSentMail::class);
+
+        // Backups (§7 M9): every result is logged, and failures email the System administrators.
+        Event::listen(BackupWasSuccessful::class, [BackupEvents::class, 'succeeded']);
+        Event::listen(BackupHasFailed::class, [BackupEvents::class, 'failed']);
+        Event::listen(CleanupHasFailed::class, [BackupEvents::class, 'cleanupFailed']);
+        Event::listen(UnhealthyBackupWasFound::class, [BackupEvents::class, 'unhealthy']);
 
         // Permissions are checked per action; the System administrator has no blanket bypass (§4).
         Gate::define('assign-role', fn (User $actor, User $target) => $actor->can('users.manage') && $actor->isNot($target));

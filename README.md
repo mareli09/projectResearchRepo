@@ -46,6 +46,7 @@ php artisan migrate:fresh --seed
 npm run build        # or: npm run dev
 php artisan serve    # http://127.0.0.1:8000
 php artisan queue:work   # in a second terminal: sends the queued emails
+php artisan queue:work long --queue=long --timeout=3600   # a third: backups, restores, clustering
 ```
 
 Locally `MAIL_MAILER=log`, so emails (activation links, recovery codes) are written to `storage/logs/laravel.log` instead of being sent. Every sent email is also recorded in the `mail_log` table.
@@ -221,7 +222,7 @@ How the design screens work:
 - **Real data wherever it exists.**
   - The landing page, catalog, search (facets: college, year, type, theme, SDG, adviser; sort), study pages, related studies, the analytics dashboards (Table 7 charts and compliance), the supervised-studies and research-summary charts, and the settings values all read the 1,419 records and the settings table.
   - Downloads on the study page use the real permission check.
-- **Sample data where the module is not built yet**, from `app/Domain/Site/DesignData.php`, and the page says "sample". This covers submissions, notifications, full-paper requests, clustering runs, AI performance figures, backups and jobs. Each module replaces its part of that class in its sprint.
+- **Sample data only in the seeders.** `app/Domain/Site/DesignData.php` feeds `WorkflowSampleSeeder` (sample submissions, requests, runs, notifications and searches). No screen reads it any more.
 - **Buttons that do not work yet** use `<x-button preview="Sprint N">`. They never submit; a toast says which sprint builds them. Every such page shows a "Design preview" note.
 - **Themes before clustering:** until the first K-Means run (Sprint 6), `app/Domain/Site/Corpus.php` gives each record the prototype theme that best matches its keywords. This drives the theme map, theme filter and heat map.
 - **Theme picker [Not in manuscript]:** the Theme button in the top bar has 8 swatches, a custom color, and System, Light or Dark. The accent colors are computed from the chosen hue (lightness capped at 36% in light mode for WCAG AA). Guests keep the choice in the browser. For signed-in users it is saved to the account.
@@ -427,3 +428,23 @@ The four-step workflow now works on the database (`app/Domain/Submissions/Workfl
 - A migration moves stored landing content from the old navy default to green. A color the URDC chose on purpose is kept.
 - **Unchanged:** gold is still the LLM suggestion color, and the status colors (ok, warn, bad) are fixed.
 - **CLAUDE.md:** this replaces its Navy default (§9, §15) at the developer's request.
+
+## Backups and evaluator accounts
+
+**Backups** (`/admin/backups`, System administrator, CLAUDE.md §7 M9 and §19):
+- `spatie/laravel-backup` makes a zip of the database dump plus `storage/app/research` and `storage/app/public`. The code is in git and `.env` is left out on purpose.
+- **Always encrypted** with AES-256 using `BACKUP_ARCHIVE_PASSWORD`. Without it, "Back up now" and the daily backup refuse to run and say why. Keep the password outside the server: a backup cannot be restored without it.
+- **Off-server copy:** set `BACKUP_OFFSITE_PATH` to a share mounted from outside the server (for example an NFS or SMB mount from the ICT Office). Each backup is written to both, and the page shows "Copied" or "Not copied" for each.
+- **Schedule** (`routes/console.php`): the backup at 2:00 AM, then cleanup to 7 daily, 4 weekly and 3 monthly copies; `backup:monitor` at 7:00 AM; a restore test on the 1st of each month at 4:00 AM.
+- **Restore to staging** loads a backup into `BACKUP_STAGING_DATABASE` (default `tua_repository_staging`) with the `mysql` client and compares 8 key tables with the live database. The database password goes in `MYSQL_PWD`, never on the command line. Live data is not touched.
+- **Promote** is command line only: `php artisan backup:promote <file>`. It accepts only a backup that passed the staging check, asks you to type the file name, puts the site in maintenance mode, takes a safety backup, then replaces the live database and copies the research files back.
+- **Failures** are logged as `backup` events and emailed to every System administrator. System health shows the last backup.
+- **Long jobs** (backups, restores, clustering) use their own queue connection, `long`, with a retry window of 4,000 seconds. Otherwise the default queue's 90-second window would start a second copy of a job that is still running. Locally `composer dev` runs that worker. On the server it is the `tua-queue-long` program in `deploy/supervisor-tua.conf`.
+- **Windows/XAMPP:** set `DB_DUMP_BINARY_PATH=C:/xampp/mysql/bin` so `mysqldump` and `mysql` are found. On Ubuntu leave it empty.
+
+**Evaluator accounts** (`/admin/evaluators`, System administrator, §17):
+- Work only when `APP_EVALUATION_COPY=true`. Otherwise the page explains why and creating one is refused. An evaluator who is signed in on a site that is not the evaluation copy is signed out.
+- The administrator enters a label, the evaluator's email (any domain: the one exception to the `@tua.edu.ph` rule), the role to act as (Student, Faculty adviser or URDC administrator, never System administrator), the college and program when needed, and the expiry date. The default comes from `EVALUATION_ENDS_ON`, and the longest allowed is 120 days.
+- The evaluator gets the usual 48-hour activation link and **chooses their own password** on the activation page. The administrator never sees it.
+- The account stops working at the end of the expiry day, and a signed-in evaluator is signed out at the next click. "End now" ends it at once and signs it out everywhere.
+- **Every action is logged.** Actions log themselves as for any user, and every page an evaluator opens is logged as a `view` event. The page links each evaluator to their entries in the activity log.

@@ -3,6 +3,8 @@
 use App\Http\Controllers\AccessRequestController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\ActivityLogController;
+use App\Http\Controllers\Admin\BackupController;
+use App\Http\Controllers\Admin\EvaluatorController;
 use App\Http\Controllers\Admin\HealthController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
@@ -17,7 +19,6 @@ use App\Http\Controllers\Design\AdviserController;
 use App\Http\Controllers\Design\CoordinatorController;
 use App\Http\Controllers\Design\SiteContentController;
 use App\Http\Controllers\Design\StudentController;
-use App\Http\Controllers\Design\SysadminController;
 use App\Http\Controllers\Design\UrdcController;
 use App\Http\Controllers\LibraryController;
 use App\Http\Controllers\RecordFileController;
@@ -175,8 +176,13 @@ Route::middleware('auth')->group(function () {
             ->middleware('throttle:10,1')->name('services.test');
         Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');
         Route::post('/settings/{group}', [SettingsController::class, 'update'])->name('settings.update');
-        Route::get('/backups', [SysadminController::class, 'backups'])->name('backups');
-        Route::get('/evaluators', [SysadminController::class, 'evaluators'])->name('evaluators');
+        Route::get('/backups', [BackupController::class, 'index'])->name('backups');
+        Route::post('/backups', [BackupController::class, 'store'])->middleware('throttle:6,1')->name('backups.run');
+        Route::post('/backups/{file}/restore', [BackupController::class, 'restore'])->where('file', '[\w.-]+\.zip')
+            ->middleware('throttle:6,1')->name('backups.restore');
+        Route::get('/evaluators', [EvaluatorController::class, 'index'])->name('evaluators');
+        Route::post('/evaluators', [EvaluatorController::class, 'store'])->middleware('throttle:20,1')->name('evaluators.store');
+        Route::post('/evaluators/{user}/end', [EvaluatorController::class, 'end'])->name('evaluators.end');
     });
 
     // Theme labels: coordinators and the URDC accept, edit or reject LLM label suggestions (§4, §7 M6).

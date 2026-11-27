@@ -60,6 +60,12 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            // Backups (spatie/laravel-backup): InnoDB only, so dump without locking tables.
+            // On Windows/XAMPP set DB_DUMP_BINARY_PATH=C:/xampp/mysql/bin
+            'dump' => array_filter([
+                'dump_binary_path' => env('DB_DUMP_BINARY_PATH'),
+                'use_single_transaction',
+            ]),
         ],
 
         'mariadb' => [

@@ -18,6 +18,23 @@ return [
     // Separate evaluation copy with temporary evaluator accounts (§17).
     'evaluation_copy' => (bool) env('APP_EVALUATION_COPY', false),
 
+    // Evaluator accounts expire on this date by default (the end of the evaluation period).
+    'evaluation' => [
+        'ends_on' => env('EVALUATION_ENDS_ON'),
+        'max_days' => 120,
+    ],
+
+    // Queue connection for long jobs (backups, restores, clustering): see config/queue.php 'long'.
+    'long_queue' => env('QUEUE_LONG_CONNECTION', 'long'),
+
+    // Backups (§7 M9, §19). Restores always go to the staging database first.
+    'backup' => [
+        'staging_database' => env('BACKUP_STAGING_DATABASE', env('DB_DATABASE', 'tua_repository').'_staging'),
+        // Folder of mysql / mysqldump; empty = on the PATH (Ubuntu). XAMPP: C:/xampp/mysql/bin
+        'mysql_bin' => env('DB_DUMP_BINARY_PATH', ''),
+        'daily_at' => '02:00',
+    ],
+
     // Features marked [Not in manuscript]: keep them easy to switch off.
     'features' => [
         'landing_cms' => (bool) env('FEATURE_LANDING_CMS', true),

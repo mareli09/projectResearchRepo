@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Domain\Accounts\ActivationService;
+use App\Domain\Accounts\PasswordRules;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -31,15 +32,26 @@ class ActivationController extends Controller
             'state' => $state,
             'token' => $token,
             'email' => $activation?->user->email,
+            'setPassword' => $activation !== null && self::setsPassword($activation->user),
         ]);
     }
 
-    public function store(string $token, ActivationService $service): RedirectResponse
+    public function store(Request $request, string $token, ActivationService $service): RedirectResponse
     {
         $activation = $service->find($token);
 
+        // Evaluator accounts (§17) are made by the System administrator, so the evaluator
+        // chooses the password here. Nobody else ever knows it.
+        $password = null;
+        if ($activation !== null && self::setsPassword($activation->user)) {
+            $password = $request->validate(['password' => PasswordRules::rules()])['password'];
+        }
+
         if ($activation === null || ! $service->activate($activation)) {
             return redirect()->route('activation.show', $token);
+        }
+        if ($password !== null) {
+            $activation->user->forceFill(['password' => $password, 'password_changed_at' => now()])->save();
         }
 
         return redirect()->route('login')->with('status', 'Your account is active. You can sign in now.');
@@ -57,5 +69,10 @@ class ActivationController extends Controller
 
         return redirect()->route('login')->with('status',
             'If this account is waiting for activation, a new link is on its way. Older links no longer work.');
+    }
+
+    private static function setsPassword(User $user): bool
+    {
+        return $user->user_type === 'evaluator' && $user->password_changed_at === null;
     }
 }

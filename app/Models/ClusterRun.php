@@ -37,4 +37,12 @@ class ClusterRun extends Model
     {
         return $this->hasMany(Cluster::class)->orderBy('number');
     }
+
+    /** @return list<array<string, mixed>> scores for each k tried (inertia, silhouette, Davies–Bouldin) */
+    public function scores(): array
+    {
+        $scores = $this->params['scores'] ?? [];
+
+        return is_array($scores) ? array_values(array_filter($scores, 'is_array')) : [];
+    }
 }
