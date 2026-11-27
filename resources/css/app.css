@@ -81,6 +81,13 @@
 }
 
 @layer base {
+    /* A dropdown is as wide as its longest option; never wider than its column (CLAUDE.md §16: no sideways scroll). */
+    select, input, textarea { max-width: 100%; }
+    /* Grid items may shrink below their content, so a long option or word cannot widen the column. */
+    .grid > * { min-width: 0; }
+    /* Items of a wrapping row (filter bars) are never wider than the row. */
+    .flex-wrap > * { max-width: 100%; min-width: 0; }
+
     [x-cloak] { display: none !important; }
     html { -webkit-text-size-adjust: 100%; }
     body {

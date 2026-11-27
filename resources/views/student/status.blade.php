@@ -10,7 +10,7 @@
                 <x-slot:actions>
                     <form method="GET" class="flex items-end gap-2">
                         <div class="flex flex-col gap-1"><label for="st-pick" class="text-[13px] font-medium">Submission</label>
-                            <select id="st-pick" name="id" onchange="this.form.submit()" class="min-h-11 rounded-md border border-line bg-surface px-3">
+                            <select id="st-pick" name="id" data-autosubmit class="min-h-11 rounded-md border border-line bg-surface px-3">
                                 @foreach ($mine as $m)<option value="{{ $m->public_id }}" @selected($m->public_id === $sub['id'])>{{ $m->public_id }} · {{ ucfirst($m->status) }}</option>@endforeach
                             </select></div>
                         <noscript><x-button type="submit">Open</x-button></noscript>

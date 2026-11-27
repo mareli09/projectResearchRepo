@@ -8,7 +8,7 @@
     $themeAllowUser = (bool) (\App\Domain\Site\SiteContent::published()['theme']['allowUser'] ?? true) && config('tua.features.theme_picker');
     $themeUser = auth()->user();
 @endphp
-<script>
+<script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">
 (function () {
     var D = document.documentElement;
     D.dataset.defaultColor = @json($themeDefault);
@@ -55,7 +55,8 @@
             var dark = '--accent:' + dA + ';--accent-soft:' + hsl(h, Math.min(s, .45), .2) + ';--bar:' + hsl(h, Math.min(s, .5), .14) + ';--c1:' + dA + ';--heat1:' + dA + ';';
             var el = document.getElementById('theme-style');
             if (!el) { el = document.createElement('style'); el.id = 'theme-style'; document.head.appendChild(el); }
-            el.textContent = ':root{' + light + '}:root[data-theme="dark"]{' + dark + '}';
+            // :root:root outranks the base tokens in app.css, which is loaded after this style element.
+            el.textContent = ':root:root{' + light + '}:root:root[data-theme="dark"]{' + dark + '}';
             var mode = window.tuaTheme.get().mode || 'system';
             if (mode === 'system') mode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             if (D.dataset.theme !== mode) D.dataset.theme = mode;

@@ -17,7 +17,7 @@
         @if ($draft)
             <span class="st"><span class="dot-saved" style="background: var(--warn)"></span>Draft saved {{ $draft->updated_at->diffForHumans() }}. Visitors still see the published page.</span>
             <x-button :href="route('home', ['preview' => 1])" target="_blank" rel="noopener">Preview</x-button>
-            <form method="POST" action="{{ route('site.content.discard') }}" onsubmit="return confirm('Discard all draft changes?')">@csrf<x-button type="submit">Discard changes</x-button></form>
+            <form method="POST" action="{{ route('site.content.discard') }}" data-confirm="Discard all draft changes?">@csrf<x-button type="submit">Discard changes</x-button></form>
             <form method="POST" action="{{ route('site.content.publish') }}">@csrf<x-button type="submit" variant="primary">Publish</x-button></form>
         @else
             <span class="st"><span class="dot-saved"></span>Everything is published.</span>
@@ -43,7 +43,7 @@
                     </div>
                 @endforeach
             </form>
-            <form method="POST" action="{{ route('site.content.defaults') }}" class="pt-3 px-1.5 mt-2.5 border-t border-line" onsubmit="return confirm('Put the default content in the draft? Nothing goes live until you publish.')">
+            <form method="POST" action="{{ route('site.content.defaults') }}" class="pt-3 px-1.5 mt-2.5 border-t border-line" data-confirm="Put the default content in the draft? Nothing goes live until you publish.">
                 @csrf <x-button type="submit" size="sm">Load default content</x-button>
             </form>
         </aside>

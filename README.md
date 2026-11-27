@@ -97,6 +97,7 @@ composer test        # Pest (uses the tua_repository_test database)
 composer lint        # Pint
 composer analyse     # Larastan level 6
 cd analytics && .venv/Scripts/python -m pytest -q
+npm run test:e2e     # Playwright: desktop, Pixel 7 and iPhone 14 (first time: npx playwright install chromium webkit)
 ```
 
 GitHub Actions runs all four on every push ([.github/workflows/ci.yml](.github/workflows/ci.yml)).
@@ -503,3 +504,39 @@ CLAUDE.md §16 asks for a responsive web app that can be installed. It is not a 
   - If the connection drops, "Retry upload" sends the same files again; they stay selected.
   - The server answers these uploads with `{"redirect": url}` (`UploadRedirectAsJson`), so the flash message and form errors are still there on the page the browser opens next.
   - Without JavaScript the forms post normally.
+
+## Security headers, browser tests and the ZAP scan
+
+**Security headers** (`SecurityHeaders`, on every response, CLAUDE.md §14):
+- **Content Security Policy:** scripts only from this site.
+  - The one inline script (the theme, applied before first paint) carries a nonce that is new on every request.
+  - `'unsafe-eval'` stays, because Alpine.js evaluates the template expressions.
+  - Inline `on…=` handlers were replaced with `data-autosubmit`, `data-confirm` and `data-open-dialog`.
+- **Other headers:** HSTS (HTTPS only), `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy`. `X-Powered-By` is removed.
+- **No `XSRF-TOKEN` cookie:** forms carry `_token`, scripts send the meta-tag token, and Livewire sends its own. No cookie is readable by JavaScript.
+- While `npm run dev` runs, the Vite dev server is allowed in the policy, locally only.
+
+**Browser tests** (`tests/Browser`, Playwright, §16 "Mobile tests"):
+- **Setup:** `npm run test:e2e` runs `php artisan e2e:prepare`, which builds and seeds its own database (`tua_repository_e2e`) and writes unique upload files. It then starts the app on PHP's built-in server at `127.0.0.1:8010`, with emails written to `storage/logs/e2e.log`.
+- **Projects:** each test runs on desktop Chrome, Pixel 7 and iPhone 14 (WebKit).
+- **What is covered:**
+  - landing page and manifest
+  - public catalog without files
+  - security headers
+  - register: Gmail refused, then a TUA email, activation from the email, sign-in
+  - recovery with the 6-digit code
+  - submit with five files, endorse, coordinator decision, approve and publish, then search
+  - the analytics dashboard and CSV export
+  - theme color and dark mode saved to the account
+- **Checks on every page:** no sideways scrolling, and no CSP or script errors in the console.
+- **Bugs these tests found and fixed:**
+  - Uploads posted to the wrong address: the Save draft button named `action` shadowed `form.action`.
+  - A picked theme color never applied: the base tokens loaded later and won.
+  - On iPhone 14 (390 px), pages scrolled sideways: the top-bar tools could not shrink, long dropdown options widened their columns, and single-column grids used `1fr` instead of `minmax(0, 1fr)`.
+  - On phones there was no way to open the theme picker: it is now in the account menu.
+
+**OWASP ZAP baseline:**
+- `deploy/zap/baseline.yaml` (spider and passive checks only); how to run it is in `deploy/zap/README.md`.
+- The last scan had no High findings. The Medium and Low findings are listed there with what was fixed and why the rest are accepted.
+- `deploy/nginx-tua.conf` is the HTTPS site for the server.
+

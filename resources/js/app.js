@@ -279,7 +279,8 @@ document.addEventListener('submit', (e) => {
         const label = box.querySelector('.upload-label');
         const meter = box.querySelector('.meter');
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', form.action);
+        // Not form.action: a button named "action" (Save draft) would shadow it.
+        xhr.open('POST', form.getAttribute('action') || window.location.href);
         xhr.setRequestHeader('Accept', 'text/html');
         xhr.setRequestHeader('X-Tua-Upload', '1');
         xhr.upload.addEventListener('progress', (p) => {
@@ -312,4 +313,21 @@ document.addEventListener('submit', (e) => {
         xhr.send(data);
     };
     send();
+});
+
+// Behaviour that used to be inline handlers (onchange=, onsubmit=, onclick=), so the Content
+// Security Policy can forbid inline scripts (CLAUDE.md §14 Security).
+document.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el instanceof HTMLElement && el.hasAttribute('data-autosubmit') && el.form) el.form.requestSubmit();
+});
+document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (form instanceof HTMLFormElement && form.dataset.confirm && !window.confirm(form.dataset.confirm)) e.preventDefault();
+}, true);
+document.addEventListener('click', (e) => {
+    const link = e.target instanceof Element ? e.target.closest('[data-open-dialog]') : null;
+    if (!link) return;
+    const dialog = document.getElementById(link.getAttribute('data-open-dialog'));
+    if (dialog instanceof HTMLDialogElement) { e.preventDefault(); dialog.showModal(); }
 });

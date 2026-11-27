@@ -19,20 +19,20 @@
 
     <form method="GET" action="{{ route($route) }}" class="panel mb-4 flex flex-wrap items-end gap-3" style="padding: 12px 16px">
         <div class="flex flex-col gap-1"><label for="an-college" class="text-[13px] font-medium">College</label>
-            <select id="an-college" name="college" class="{{ $sel }}" onchange="this.form.submit()">
+            <select id="an-college" name="college" class="{{ $sel }}" data-autosubmit>
                 <option value="">{{ count($scope) === 6 ? 'All colleges' : 'All in cluster' }}</option>
                 @foreach ($scope as $c)<option @selected(($filters['college'] ?? '') === $c)>{{ $c }}</option>@endforeach
             </select></div>
         <div class="flex flex-col gap-1"><label for="an-year" class="text-[13px] font-medium">Year</label>
-            <select id="an-year" name="year" class="{{ $sel }}" onchange="this.form.submit()">
+            <select id="an-year" name="year" class="{{ $sel }}" data-autosubmit>
                 <option value="">All years</option>@foreach (range(2025, 2015) as $y)<option @selected(($filters['year'] ?? '') == $y)>{{ $y }}</option>@endforeach
             </select></div>
         <div class="flex flex-col gap-1"><label for="an-theme" class="text-[13px] font-medium">Theme</label>
-            <select id="an-theme" name="theme" class="{{ $sel }}" onchange="this.form.submit()">
+            <select id="an-theme" name="theme" class="{{ $sel }}" data-autosubmit>
                 <option value="">All themes</option>@foreach ($themes as $id => $l)<option value="{{ $id }}" @selected(($filters['theme'] ?? '') == $id)>{{ $l }}</option>@endforeach
             </select></div>
         <div class="flex flex-col gap-1"><label for="an-sdg" class="text-[13px] font-medium">SDG</label>
-            <select id="an-sdg" name="sdg" class="{{ $sel }}" onchange="this.form.submit()">
+            <select id="an-sdg" name="sdg" class="{{ $sel }}" data-autosubmit>
                 <option value="">All SDGs</option>@foreach (range(1, 17) as $s)<option value="{{ $s }}" @selected(($filters['sdg'] ?? '') == $s)>SDG {{ $s }}</option>@endforeach
             </select></div>
         <noscript><x-button type="submit">Apply</x-button></noscript>

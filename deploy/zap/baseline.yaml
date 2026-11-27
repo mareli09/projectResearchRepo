@@ -1,0 +1,44 @@
+# OWASP ZAP baseline scan (CLAUDE.md §14 Security: "no high findings before release").
+# Spider + passive checks only: nothing is attacked, so it is safe against the evaluation copy.
+#
+#   ZAP_TARGET=https://eval-repository.tua.edu.ph ZAP_REPORT_DIR=$PWD/storage/zap \
+#     zap.sh -cmd -autorun deploy/zap/baseline.yaml
+#
+# On Windows use zap.bat. See deploy/zap/README.md.
+env:
+  contexts:
+    - name: tua
+      urls:
+        - ${ZAP_TARGET}
+      includePaths:
+        - ${ZAP_TARGET}.*
+      excludePaths:
+        - ${ZAP_TARGET}/logout.*
+  parameters:
+    failOnError: true
+    failOnWarning: false
+    progressToStdout: true
+jobs:
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 10
+      scanOnlyInScope: true
+  - type: spider
+    parameters:
+      context: tua
+      maxDuration: 3
+      maxChildren: 40
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 10
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: ${ZAP_REPORT_DIR}
+      reportFile: zap-baseline
+      reportTitle: TUA Research Repository - ZAP baseline
+  - type: report
+    parameters:
+      template: traditional-json
+      reportDir: ${ZAP_REPORT_DIR}
+      reportFile: zap-baseline

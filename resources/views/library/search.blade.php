@@ -33,7 +33,7 @@
                     @foreach ($labels as $key => $label)
                         <div class="facet">
                             <label for="f-{{ $key }}" class="text-[13px] font-medium">{{ $label }}</label>
-                            <select id="f-{{ $key }}" name="{{ $key }}" class="{{ $sel }}" onchange="this.form.submit()">
+                            <select id="f-{{ $key }}" name="{{ $key }}" class="{{ $sel }}" data-autosubmit>
                                 <option value="">All</option>
                                 @foreach ($facets[$key] as $v => $l)
                                     <option value="{{ $v }}" @selected((string) ($filters[$key] ?? '') === (string) $v)>{{ $l }}</option>
@@ -43,7 +43,7 @@
                     @endforeach
                     <div class="facet">
                         <label for="f-sort" class="text-[13px] font-medium">Sort by</label>
-                        <select id="f-sort" name="sort" class="{{ $sel }}" onchange="this.form.submit()">
+                        <select id="f-sort" name="sort" class="{{ $sel }}" data-autosubmit>
                             @foreach (['relevance' => 'Relevance', 'newest' => 'Newest', 'views' => 'Most viewed'] as $v => $l)
                                 <option value="{{ $v }}" @selected(($filters['sort'] ?? (! empty($filters['q']) ? 'relevance' : 'newest')) === $v)>{{ $l }}</option>
                             @endforeach

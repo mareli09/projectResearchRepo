@@ -68,7 +68,7 @@
         <div>
             <label class="flex items-start gap-2 min-h-11">
                 <input type="checkbox" name="privacy" value="1" @checked(old('privacy')) class="size-5 mt-0.5">
-                <span>I have read the <a href="#privacy" onclick="document.getElementById('privacy').showModal(); return false;">Privacy Notice</a> and agree that the URDC processes my data for the repository, under the Data Privacy Act of 2012 (RA 10173).</span>
+                <span>I have read the <a href="#privacy" data-open-dialog="privacy">Privacy Notice</a> and agree that the URDC processes my data for the repository, under the Data Privacy Act of 2012 (RA 10173).</span>
             </label>
             <x-form-error name="privacy" />
         </div>

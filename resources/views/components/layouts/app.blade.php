@@ -54,6 +54,10 @@
                         </summary>
                         <div class="menu">
                             <a href="{{ route('account') }}"><x-icon name="user" />Account and recovery</a>
+                            @if (config('tua.features.theme_picker'))
+                                {{-- On phones the top-bar Theme button is hidden to save room; this keeps it reachable (§16). --}}
+                                <button type="button" data-theme-toggle aria-haspopup="dialog"><x-icon name="palette" />Theme and appearance</button>
+                            @endif
                             <a href="{{ route('home') }}"><x-icon name="globe" />Public home page</a>
                             <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit"><x-icon name="logout" />Sign out</button></form>
                         </div>

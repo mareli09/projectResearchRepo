@@ -60,7 +60,8 @@ return [
 
         'single' => [
             'driver' => 'single',
-            'path' => storage_path('logs/laravel.log'),
+            // LOG_PATH lets the Playwright server write to its own file (tests/Browser).
+            'path' => env('LOG_PATH', storage_path('logs/laravel.log')),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
         ],
