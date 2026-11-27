@@ -483,3 +483,23 @@ On "Submit a study" (CLAUDE.md §7 M3, state `draft`):
 - Saving a draft is logged as `upload`, and LLM suggestion choices are logged as on submit.
 - A migration lets `abstract`, `research_type` and `year` be empty while a submission is a draft.
 
+
+## Installable web app (PWA) and phone uploads
+
+CLAUDE.md §16 asks for a responsive web app that can be installed. It is not a native app.
+- **Manifest** at `/manifest.webmanifest`:
+  - name "TUA Research Repository", short name "TUA Repository"
+  - `display: standalone`, opening at `/dashboard`
+  - icons at 192 and 512 px, plus a maskable 512 px icon for Android
+  - the theme color is the site's current accent from the landing page settings
+- Every layout links the manifest and the Apple touch icon. The browser bar follows the theme the user picks: the accent in light mode, the dark background in dark mode.
+- **Icons** are in `public/icons/`: TUA Green, "TUA" in cream and a lime bar.
+- **Service worker** (`public/sw.js`):
+  - It caches only the app shell: the built CSS, JS and fonts under `/build/`, the icons, the manifest and the offline page.
+  - Pages always load from the network. When a page cannot load, the self-contained **"You are offline"** page (`/offline`) is shown. It holds no personal data and no CSRF token.
+  - Research files, downloads, JSON and Livewire requests are never cached.
+  - Browsers allow service workers only on HTTPS and on localhost.
+- **Uploads with progress and retry:** any form that sends files is posted by script, so the page shows a progress bar.
+  - If the connection drops, "Retry upload" sends the same files again; they stay selected.
+  - The server answers these uploads with `{"redirect": url}` (`UploadRedirectAsJson`), so the flash message and form errors are still there on the page the browser opens next.
+  - Without JavaScript the forms post normally.

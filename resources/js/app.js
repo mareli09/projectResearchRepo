@@ -243,3 +243,73 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else initCharts();
 
 window.echarts = echarts;
+
+// Installable web app (CLAUDE.md §16): the service worker caches the app shell only, never pages or files.
+// Browsers allow it on HTTPS and on localhost.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {}));
+}
+
+// Uploads with progress and a retry on a weak connection (CLAUDE.md §16). Any form that sends files
+// is posted with XHR so the page can show progress; the server's redirect (to the result, or back to
+// the form with errors) is then followed as usual. Without JavaScript the form posts normally.
+document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || form.enctype !== 'multipart/form-data' || e.defaultPrevented) return;
+    const hasFile = [...form.querySelectorAll('input[type=file]')].some((i) => !i.disabled && i.files && i.files.length);
+    if (!hasFile) return;
+    e.preventDefault();
+
+    const data = new FormData(form);
+    if (e.submitter && e.submitter.name) data.append(e.submitter.name, e.submitter.value);
+    let box = form.querySelector('.upload-status');
+    if (!box) {
+        box = document.createElement('div');
+        box.className = 'upload-status callout small mt-3';
+        box.setAttribute('role', 'status');
+        box.setAttribute('aria-live', 'polite');
+        form.appendChild(box);
+    }
+    const buttons = [...form.querySelectorAll('button[type=submit]')];
+
+    const send = () => {
+        buttons.forEach((b) => { b.disabled = true; });
+        box.innerHTML = '<div class="flex items-center justify-between gap-2"><span class="upload-label">Uploading… 0%</span></div>'
+            + '<div class="meter mt-2" role="progressbar" aria-label="Upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i style="width:0%"></i></div>';
+        const label = box.querySelector('.upload-label');
+        const meter = box.querySelector('.meter');
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', form.action);
+        xhr.setRequestHeader('Accept', 'text/html');
+        xhr.setRequestHeader('X-Tua-Upload', '1');
+        xhr.upload.addEventListener('progress', (p) => {
+            if (!p.lengthComputable) return;
+            const pct = Math.round((p.loaded / p.total) * 100);
+            label.textContent = pct < 100 ? `Uploading… ${pct}%` : 'Checking the files…';
+            meter.setAttribute('aria-valuenow', String(pct));
+            meter.firstElementChild.style.width = pct + '%';
+        });
+        const fail = (msg) => {
+            buttons.forEach((b) => { b.disabled = false; });
+            box.className = 'upload-status callout callout-bad small mt-3';
+            box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-2"><span>${msg}</span><button type="button" class="btn btn-sm">Retry upload</button></div>`;
+            box.querySelector('button').addEventListener('click', () => { box.className = 'upload-status callout small mt-3'; send(); });
+        };
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                // The server answers with the page to open next (the result, or the form with its errors).
+                try { const next = JSON.parse(xhr.responseText).redirect; if (next) { window.location.href = next; return; } } catch (err) { /* not JSON */ }
+                window.location.reload();
+                return;
+            }
+            if (xhr.status === 413) { fail('The files are too large for the server. Attach smaller files.'); return; }
+            if (xhr.status === 419) { fail('Your session expired. Reload the page and sign in again.'); return; }
+            fail(`The upload did not finish (error ${xhr.status}). Your files are still selected.`);
+        });
+        xhr.addEventListener('error', () => fail('The connection dropped during the upload. Your files are still selected.'));
+        xhr.addEventListener('timeout', () => fail('The upload took too long. Your files are still selected.'));
+        xhr.timeout = 10 * 60 * 1000;
+        xhr.send(data);
+    };
+    send();
+});

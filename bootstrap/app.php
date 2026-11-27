@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\ApplyRuntimeSettings;
 use App\Http\Middleware\EnsureAccountCanSignIn;
+use App\Http\Middleware\UploadRedirectAsJson;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,7 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         // Runs on every web request, so a deactivated or expired account is signed out at once.
-        $middleware->web(append: [EnsureAccountCanSignIn::class]);
+        $middleware->web(append: [EnsureAccountCanSignIn::class, UploadRedirectAsJson::class]);
         // Idle session timeout from System settings, applied before the session starts.
         $middleware->web(prepend: [ApplyRuntimeSettings::class]);
 

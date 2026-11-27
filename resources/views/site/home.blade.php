@@ -26,7 +26,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content="{{ $c['hero']['lead'] }}">
-    <meta name="theme-color" content="#0d302b">
+    @include('partials.pwa-head', ['themeColor' => '#0d302b'])
     <title>{{ $site['name'] }} · {{ $site['tagline'] }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>

@@ -59,6 +59,8 @@
             var mode = window.tuaTheme.get().mode || 'system';
             if (mode === 'system') mode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
             if (D.dataset.theme !== mode) D.dataset.theme = mode;
+            var bar = document.querySelector('meta[name="theme-color"]');
+            if (bar) bar.setAttribute('content', mode === 'dark' ? '#0b1a17' : A);
         }
     };
     window.tuaTheme.apply();

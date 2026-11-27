@@ -21,6 +21,7 @@ use App\Http\Controllers\Design\SiteContentController;
 use App\Http\Controllers\Design\StudentController;
 use App\Http\Controllers\Design\UrdcController;
 use App\Http\Controllers\LibraryController;
+use App\Http\Controllers\PwaController;
 use App\Http\Controllers\RecordFileController;
 use App\Http\Controllers\SiteController;
 use App\Http\Controllers\ThemeController;
@@ -37,6 +38,10 @@ use Spatie\Permission\Models\Role;
 | Public: landing page (§8), public catalog of approved titles and abstracts (§7 M4).
 */
 Route::get('/', [SiteController::class, 'home'])->name('home');
+
+// Installable web app (§16): manifest with the current accent, and the offline page for the service worker.
+Route::get('/manifest.webmanifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
+Route::get('/offline', [PwaController::class, 'offline'])->name('offline');
 Route::get('/catalog', [SiteController::class, 'catalog'])->name('catalog');
 Route::get('/catalog/{publicId}', [SiteController::class, 'catalogShow'])->name('catalog.show');
 
