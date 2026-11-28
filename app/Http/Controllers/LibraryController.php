@@ -30,7 +30,7 @@ class LibraryController extends Controller
             'public' => false,
             'filters' => $filters,
             'results' => $results,
-            'facets' => RecordSearch::facets(),
+            'facets' => RecordSearch::facets($filters['college'] ?? null),
         ]);
     }
 

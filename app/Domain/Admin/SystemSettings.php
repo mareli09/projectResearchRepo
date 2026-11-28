@@ -44,6 +44,9 @@ final class SystemSettings
                 'recovery_email' => ['boolean'],
                 'sms' => ['boolean'],
             ],
+            'retention' => [
+                'years' => ['required', 'integer', 'between:1,10'],
+            ],
         ];
     }
 
@@ -56,6 +59,7 @@ final class SystemSettings
     public const TITLES = [
         'thresholds' => 'Similarity thresholds', 'schedule' => 'Clustering schedule', 'llm' => 'LLM suggestions',
         'files' => 'File settings', 'signin' => 'Sign-in settings', 'recovery' => 'Recovery channels',
+        'retention' => 'Activity log retention',
     ];
 
     /**
@@ -74,6 +78,7 @@ final class SystemSettings
             'signin' => ['idle_minutes' => self::idleMinutes(), 'login_max_attempts' => self::loginMaxAttempts()],
             'recovery' => ['tua_email' => true] + array_intersect_key((array) Setting::valueOf('recovery.channels', []), ['recovery_email' => 1, 'sms' => 1])
                 + ['recovery_email' => (bool) config('tua.features.recovery_email'), 'sms' => (bool) config('tua.features.recovery_sms')],
+            'retention' => ['years' => self::logRetentionYears()],
             default => [],
         };
     }
@@ -94,6 +99,7 @@ final class SystemSettings
             'files' => ['max_mb' => (int) $data['max_mb'], 'abstract_word_limit' => (int) $data['abstract_word_limit']],
             'signin' => ['idle_minutes' => (int) $data['idle_minutes'], 'login_max_attempts' => (int) $data['login_max_attempts']],
             'recovery' => ['tua_email' => true, 'recovery_email' => (bool) ($data['recovery_email'] ?? false), 'sms' => (bool) ($data['sms'] ?? false)],
+            'retention' => ['years' => (int) $data['years']],
             default => throw new \InvalidArgumentException("Unknown settings group {$group}"),
         };
 
@@ -115,6 +121,7 @@ final class SystemSettings
                 'files' => ['files.max_mb' => $new['max_mb'], 'repository.abstract_word_limit' => $new['abstract_word_limit']],
                 'signin' => ['session.idle_minutes' => $new['idle_minutes'], 'auth.login_max_attempts' => $new['login_max_attempts']],
                 'recovery' => ['recovery.channels' => $new],
+                'retention' => ['audit.retention_years' => $new['years']],
             };
             foreach ($rows as $key => $value) {
                 Setting::updateOrCreate(['key' => $key], ['value' => $value]);
@@ -145,6 +152,15 @@ final class SystemSettings
     public static function llmRate(): int
     {
         return (int) Setting::valueOf('llm.rate_per_minute', config('tua.llm.rate_per_minute'));
+    }
+
+    /**
+     * How many years activity-log entries are kept (CLAUDE.md §7 M8). The default comes from
+     * ACTIVITY_LOG_RETENTION_DAYS (1,825 days = 5 years). `audit:prune` removes older entries nightly.
+     */
+    public static function logRetentionYears(): int
+    {
+        return (int) Setting::valueOf('audit.retention_years', max(1, intdiv((int) config('activitylog.delete_records_older_than_days'), 365)));
     }
 
     /** A recovery channel is offered only when the feature is built in (config) and switched on here. */

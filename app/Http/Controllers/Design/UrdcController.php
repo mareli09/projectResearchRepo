@@ -23,7 +23,7 @@ class UrdcController extends Controller
     public function analytics(Request $request): View
     {
         $scope = ['CAHS', 'CASE', 'IBAM', 'CEIS', 'CMT', 'SLCN'];
-        $filters = $request->only('college', 'year', 'theme', 'sdg');
+        $filters = Dashboard::filters($request, $scope);
 
         return view('analytics.dashboard', [
             'title' => 'University research dashboard',
@@ -36,8 +36,10 @@ class UrdcController extends Controller
 
     public function export(Request $request, string $format): Response
     {
-        return DashboardExport::response($format, 'University research dashboard', 'University-wide', ['CAHS', 'CASE', 'IBAM', 'CEIS', 'CMT', 'SLCN'],
-            $request->only('college', 'year', 'theme', 'sdg'), true, $request->user());
+        $scope = ['CAHS', 'CASE', 'IBAM', 'CEIS', 'CMT', 'SLCN'];
+
+        return DashboardExport::response($format, 'University research dashboard', 'University-wide', $scope,
+            Dashboard::filters($request, $scope), true, $request->user());
     }
 
     public function approvals(): View

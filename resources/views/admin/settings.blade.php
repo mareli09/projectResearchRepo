@@ -93,5 +93,16 @@
                 <div class="mt-2"><x-button type="submit" variant="primary">Save recovery channels</x-button></div>
             </form>
         </x-panel>
+
+        <x-panel title="Activity log retention" id="retention">
+            <form method="POST" action="{{ route('admin.settings.update', 'retention') }}" class="flex flex-col gap-3 mt-2" novalidate>
+                @csrf
+                <div class="flex flex-col gap-1"><label for="rt-years" class="font-medium">Keep activity log entries for (years)</label>
+                    <input id="rt-years" name="years" type="number" min="1" max="10" class="{{ $in }}" value="{{ $old('retention', 'years', $v['retention']['years']) }}" aria-describedby="rt-help">
+                    @if ($m = $err('retention', 'years'))<p class="field-error" role="alert">{{ $m }}</p>@endif</div>
+                <p id="rt-help" class="small text-muted">From 1 to 10 years. Every night at 3:00 AM, entries older than this are removed, and the removal itself is logged. No one can edit or delete a single entry. Removed entries stay in the backups until those expire (3 months at most).</p>
+                <div><x-button type="submit" variant="primary">Save retention</x-button></div>
+            </form>
+        </x-panel>
     </div>
 </x-layouts.app>

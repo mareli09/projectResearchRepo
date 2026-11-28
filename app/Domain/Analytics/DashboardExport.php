@@ -6,6 +6,7 @@ use App\Domain\Audit\Audit;
 use App\Domain\Audit\AuditEvent;
 use App\Domain\Site\Corpus;
 use App\Exports\DashboardWorkbook;
+use App\Models\Program;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
@@ -68,9 +69,11 @@ final class DashboardExport
             'headers' => ['Year', 'Outputs', 'Trend (descriptive only)'],
             'rows' => array_map(fn ($i) => [(string) $years[$i], $c['trend']['series'][0]['data'][$i], $c['trend']['series'][1]['data'][$i]], array_keys($years))];
 
-        $cols = $c['college']['xAxis']['data'];
-        $t[] = ['title' => 'Outputs by college and type', 'headers' => ['Research type', ...$cols],
-            'rows' => array_map(fn ($s) => [$s['name'], ...$s['data']], $c['college']['series'])];
+        // Visual 3: colleges, or one college's programs (horizontal bars whose items carry the program id).
+        $byProgram = ($d['collegeChart'] ?? 'college') === 'program';
+        $cols = $byProgram ? $c['college']['yAxis']['data'] : $c['college']['xAxis']['data'];
+        $t[] = ['title' => $byProgram ? 'Outputs by program and type' : 'Outputs by college and type', 'headers' => ['Research type', ...$cols],
+            'rows' => array_map(fn ($s) => [$s['name'], ...array_map(fn ($v) => is_array($v) ? $v['value'] : $v, $s['data'])], $c['college']['series'])];
 
         $t[] = ['title' => 'Distribution by research type', 'headers' => ['Research type', 'Outputs'],
             'rows' => array_map(fn ($p) => [$p['name'], $p['value']], $c['type']['series'][0]['data'])];
@@ -96,6 +99,9 @@ final class DashboardExport
 
         $bars = fn (array $o) => array_map(fn ($i) => [(string) $o['yAxis']['data'][$i], $o['series'][0]['data'][$i]], array_keys($o['yAxis']['data']));
         $t[] = ['title' => 'Top keywords', 'note' => 'Last 3 years.', 'headers' => ['Keyword', 'Outputs'], 'rows' => $bars($c['keywords'])];
+        $ep = $d['emergingPeriods'];
+        $t[] = ['title' => 'Emerging keywords', 'note' => "Share of studies in {$ep['recent']} minus share in {$ep['earlier']}, in percentage points. Keywords on at least 3 recent studies. Descriptive only.",
+            'headers' => ['Keyword', 'Growth (percentage points)'], 'rows' => $bars($c['emerging'])];
         $t[] = ['title' => 'Adviser load', 'note' => 'Studies supervised, last 3 years.', 'headers' => ['Adviser', 'Studies'], 'rows' => $bars($c['advisers'])];
 
         $st = $d['screeningTotals'];
@@ -126,6 +132,7 @@ final class DashboardExport
         $labels = Corpus::themeLabels();
         $parts = array_filter([
             ! empty($filters['college']) ? 'College: '.$filters['college'] : null,
+            ! empty($filters['program']) ? 'Program: '.(Program::find((int) $filters['program'])->name ?? $filters['program']) : null,
             ! empty($filters['year']) ? 'Year: '.$filters['year'] : null,
             ! empty($filters['theme']) ? 'Theme: '.($labels[(int) $filters['theme']] ?? $filters['theme']) : null,
             ! empty($filters['sdg']) ? 'SDG '.(int) $filters['sdg'] : null,

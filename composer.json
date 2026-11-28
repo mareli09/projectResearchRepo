@@ -67,6 +67,11 @@
         "test": [
             "@php vendor/bin/pest"
         ],
+        "test:coverage": [
+            "Composer\\Config::disableProcessTimeout",
+            "@php vendor/bin/pest --coverage-filter=app/Domain --coverage-clover=build/coverage.xml",
+            "@php tests/coverage-summary.php build/coverage.xml --min=70"
+        ],
         "lint": [
             "@php vendor/bin/pint --test"
         ],

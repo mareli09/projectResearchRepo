@@ -1,6 +1,6 @@
 {{-- Public catalog (guests) and Search (signed in) share this screen (CLAUDE.md §7 M4). --}}
 @php
-    $labels = ['college' => 'College', 'year' => 'Year', 'type' => 'Research type', 'theme' => 'Theme', 'sdg' => 'SDG', 'adviser' => 'Adviser'];
+    $labels = ['college' => 'College', 'program' => 'Program', 'year' => 'Year', 'type' => 'Research type', 'theme' => 'Theme', 'sdg' => 'SDG', 'adviser' => 'Adviser'];
     $action = $public ? route('catalog') : route('search');
     $show = fn ($r) => $public ? route('catalog.show', $r->public_id) : route('studies.show', $r->public_id);
     $sel = 'min-h-11 rounded-md border border-line bg-surface px-3 w-full text-[14px]';
@@ -60,7 +60,7 @@
                     @forelse ($results as $r)
                         <x-record-row :r="$r" :href="$show($r)" />
                     @empty
-                        <p class="text-muted py-5">No studies match. Searches with no results are logged so the URDC can see gaps in the collection (Sprint 5).</p>
+                        <p class="text-muted py-5">No studies match. Searches with no results are logged so the URDC can see gaps in the collection.</p>
                     @endforelse
                     <div class="py-3">{{ $results->links() }}</div>
                 </section>

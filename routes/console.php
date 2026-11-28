@@ -16,6 +16,9 @@ Schedule::command('repository:backup')->dailyAt((string) config('tua.backup.dail
 Schedule::command('backup:monitor')->dailyAt('07:00');
 Schedule::command('repository:restore-test')->monthlyOn(1, '04:00')->withoutOverlapping(120);
 
+// Activity log retention (§7 M8): entries older than the years set in System settings are removed nightly.
+Schedule::command('audit:prune')->dailyAt('03:00')->withoutOverlapping();
+
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');

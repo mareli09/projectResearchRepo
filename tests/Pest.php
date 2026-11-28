@@ -9,6 +9,7 @@ use App\Models\User;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\Support\SampleDocuments;
+use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Notifications\Notification;
@@ -25,6 +26,11 @@ pest()->extend(TestCase::class)
 
 pest()->extend(TestCase::class)
     ->in('Unit');
+
+// FULLTEXT needs committed rows: these tests truncate instead of rolling back.
+pest()->extend(TestCase::class)
+    ->use(DatabaseTruncation::class)
+    ->in('Integration');
 
 /** Reference data and roles, without demo users. */
 function seedBasics(): void

@@ -3,6 +3,7 @@
         <div>
             <div class="eyebrow">M8 · Monitoring</div>
             <h1>Activity log</h1>
+            <p class="small text-muted mt-1">Entries cannot be edited or deleted. They are kept for {{ \App\Domain\Admin\SystemSettings::logRetentionYears() }} {{ \Illuminate\Support\Str::plural('year', \App\Domain\Admin\SystemSettings::logRetentionYears()) }} (System settings), then removed automatically.</p>
         </div>
         <x-button :href="route('activity.export', $filters)">Export CSV</x-button>
     </div>

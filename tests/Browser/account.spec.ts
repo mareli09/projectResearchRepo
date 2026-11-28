@@ -37,6 +37,9 @@ test('register with a TUA email, activate from the email, sign in, then recover 
 
     await signIn(page, email, 'Tua2026check');
     await expectNoSideScroll(page);
+    // Let late requests (manifest, service worker) finish first: their responses carry the
+    // session cookie and, on WebKit, could set it again after it was cleared.
+    await page.waitForLoadState('networkidle');
     await page.context().clearCookies();
 
     // Forgot password: email, channel, 6-digit code, new password.

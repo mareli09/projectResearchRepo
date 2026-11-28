@@ -25,7 +25,7 @@ jobs:
         with:
           php-version: '8.2'
           extensions: mbstring, intl, pdo_mysql, zip, fileinfo, bcmath, gd
-          coverage: none
+          coverage: pcov
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -37,8 +37,12 @@ jobs:
         run: vendor/bin/pint --test
       - name: Larastan level 6
         run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
-      - name: Pest
-        run: vendor/bin/pest
+      - name: Pest, with line coverage of the Domain folders
+        run: vendor/bin/pest --coverage-filter=app/Domain --coverage-clover=build/coverage.xml
+      - name: Domain coverage (target at least 70%, CLAUDE.md §14)
+        # Reported in the job summary; marked but not blocking while the figure is being raised.
+        continue-on-error: true
+        run: php tests/coverage-summary.php build/coverage.xml --min=70
 
   analytics:
     runs-on: ubuntu-latest

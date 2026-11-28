@@ -67,7 +67,7 @@ class SiteController extends Controller
             'public' => true,
             'filters' => $filters,
             'results' => $results,
-            'facets' => RecordSearch::facets(),
+            'facets' => RecordSearch::facets($filters['college'] ?? null),
         ]);
     }
 

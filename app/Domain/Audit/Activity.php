@@ -8,7 +8,7 @@ use Spatie\Activitylog\Models\Activity as SpatieActivity;
 /**
  * Append-only activity log entry (CLAUDE.md §7 M8).
  * No code path may edit or delete an entry through the model.
- * Retention cleanup runs only through `php artisan activitylog:clean`.
+ * Retention cleanup runs only through `php artisan audit:prune` (years set in System settings).
  */
 class Activity extends SpatieActivity
 {

@@ -564,3 +564,28 @@ CLAUDE.md §16 asks for a responsive web app that can be installed. It is not a 
 - **Times are measured on the server** from Start to Done. The page shows each task's completion rate and mean time per evaluator, with a CSV export and **Clear results**.
 - Start, finish and settings changes are logged.
 - The task times use `DATETIME` columns, not `TIMESTAMP`: MariaDB gives the first NOT NULL `TIMESTAMP` column `ON UPDATE CURRENT_TIMESTAMP`, which would reset the start time when a task is finished.
+
+## Full-text search, program filter, emerging keywords, log retention, coverage
+
+**Search and the public catalog** (CLAUDE.md §7 M4) now use the MySQL FULLTEXT index on title and abstract (`app/Domain/Search/RecordSearch.php`):
+- Every word of 3 or more letters must appear, in any order, as a whole word or the start of one (BOOLEAN MODE `+word*`). FULLTEXT operators the user types are removed.
+- A substring match on the title, abstract and keywords is added, so short terms ("AI", "IT") and exact phrases are still found. `%` and `_` are treated as plain characters.
+- Relevance: title contains the whole query, then the FULLTEXT score (NATURAL LANGUAGE MODE), then views.
+- Laravel's `whereFullText` is used instead of Scout's database driver, which orders by id rather than relevance.
+- InnoDB updates its FULLTEXT index only at commit, so `tests/Integration` uses `DatabaseTruncation` instead of a rolled-back transaction. It runs as the last test suite and empties its tables afterwards.
+
+**Program filter** (§7 M4, M7):
+- Search and the catalog have a Program facet. With a college chosen, it lists only that college's programs, and a program from another college is dropped.
+- Every dashboard has a Program filter. It is kept only when the program belongs to a college in the user's scope (`Dashboard::filters`), so a coordinator never sees another cluster's programs. The summary cards are counted live with a program filter.
+- Visual 3 shows the colleges by research type; with one college or program chosen, it shows that college's programs by research type. Clicking a segment opens that program's records.
+
+**Emerging keywords** (Table 7 visual 7): for each keyword on at least 3 studies of the latest 2 years, the growth in its share of studies against the 3 years before, in percentage points. The top 10 are shown beside Top keywords, labeled descriptive only, and included in the Excel, CSV and PDF exports.
+
+**Activity log retention** (§7 M8):
+- System settings › Activity log retention: 1 to 10 years, default 5 (from `ACTIVITY_LOG_RETENTION_DAYS`, 1,825 days). Changes are logged.
+- `php artisan audit:prune` runs nightly at 3:00 AM and removes older entries in batches. The removal is logged as a `setting` event with the cut-off date and the count. `--dry-run` only counts.
+- This is the only path that removes entries. The model still refuses every edit and delete.
+
+**Coverage** (§14 Maintainability):
+- GitHub Actions runs Pest with PCOV and `--coverage-filter=app/Domain`, then `tests/coverage-summary.php` prints the line coverage of each Domain folder in the job summary. A figure below 70% is flagged but does not fail the build.
+- Locally: `composer test:coverage`. It needs PCOV or Xdebug, which XAMPP does not include.

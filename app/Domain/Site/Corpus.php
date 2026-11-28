@@ -42,7 +42,7 @@ final class Corpus
     public static function records(): Collection
     {
         $run = self::currentRun();
-        $key = 'corpus.v2.'.ResearchRecord::published()->max('updated_at').'.'.($run === null ? 'design' : $run->id).'.'.ResearchRecord::published()->count();
+        $key = 'corpus.v3.'.ResearchRecord::published()->max('updated_at').'.'.($run === null ? 'design' : $run->id).'.'.ResearchRecord::published()->count();
 
         $rows = Cache::remember($key, 600, /** @return list<array<string, mixed>> */ function () use ($run): array {
             // Theme and 2-D position from the current run (record_cluster), else the design themes.
@@ -72,7 +72,7 @@ final class Corpus
                     return [
                         'id' => $r->id, 'public_id' => $r->public_id, 'title' => $r->title, 'year' => $r->year,
                         'type' => $r->research_type, 'type_label' => ResearchTypes::TYPES[$r->research_type],
-                        'college' => $r->academicUnit->code, 'program' => $r->program?->name, 'adviser' => $r->adviser_name,
+                        'college' => $r->academicUnit->code, 'program' => $r->program?->name, 'program_id' => $r->program_id, 'adviser' => $r->adviser_name,
                         'keywords' => $keywords, 'sdgs' => $r->sdgs->pluck('id')->all(),
                         'views' => $r->views, 'downloads' => $r->downloads, 'complete' => $r->is_complete,
                         'theme' => $theme, 'x' => $x, 'y' => $y,

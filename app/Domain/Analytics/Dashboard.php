@@ -7,9 +7,11 @@ use App\Domain\Repository\ResearchTypes;
 use App\Domain\Search\UsageLog;
 use App\Domain\Site\Corpus;
 use App\Models\AcademicUnit;
+use App\Models\Program;
 use App\Models\ResearchRecord;
 use App\Models\Sdg;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -17,15 +19,37 @@ use Illuminate\Support\Facades\DB;
 /**
  * Builds the Table 7 visual analytics (CLAUDE.md §7 M7) as ECharts options.
  * The summary cards read the nightly kpi_snapshots when the filters allow it (college and
- * year); theme and SDG filters, and a repository with no snapshot yet, are counted live.
+ * year); program, theme and SDG filters, and a repository with no snapshot yet, are counted live.
  * Charts come from the published records (cached corpus), the screening tables, the
  * activity log (views), search_logs and download_logs.
  */
 final class Dashboard
 {
     /**
+     * The dashboard filters from the request. A program is kept only when it belongs to a college
+     * in scope (and to the chosen college), so the Program list and the figures always agree.
+     *
+     * @param  list<string>  $scope
+     * @return array<string, mixed>
+     */
+    public static function filters(Request $request, array $scope): array
+    {
+        $f = array_filter($request->only('college', 'program', 'year', 'theme', 'sdg'), fn ($v) => is_scalar($v) && $v !== '');
+        if (isset($f['program'])) {
+            $colleges = isset($f['college']) ? array_values(array_intersect($scope, [(string) $f['college']])) : $scope;
+            $ok = ctype_digit((string) $f['program'])
+                && Program::whereKey((int) $f['program'])->whereHas('academicUnit', fn ($u) => $u->whereIn('code', $colleges))->exists();
+            if (! $ok) {
+                unset($f['program']);
+            }
+        }
+
+        return $f;
+    }
+
+    /**
      * @param  list<string>  $scope  college codes in scope
-     * @param  array<string, mixed>  $filters  college, year, theme, sdg
+     * @param  array<string, mixed>  $filters  college, program, year, theme, sdg
      * @return array<string, mixed>
      */
     public static function build(array $scope, array $filters, bool $full): array
@@ -33,6 +57,9 @@ final class Dashboard
         $base = Corpus::records()->filter(fn ($r) => in_array($r['college'], $scope, true));
         if (! empty($filters['college'])) {
             $base = $base->where('college', $filters['college']);
+        }
+        if (! empty($filters['program'])) {
+            $base = $base->where('program_id', (int) $filters['program']);
         }
         if (! empty($filters['theme'])) {
             $base = $base->where('theme', (int) $filters['theme']);
@@ -54,7 +81,7 @@ final class Dashboard
         $sdgNames = Sdg::pluck('name', 'id')->all();
 
         // Summary cards: from the nightly snapshot when only college and year are filtered.
-        $snap = empty($filters['theme']) && empty($filters['sdg'])
+        $snap = empty($filters['theme']) && empty($filters['sdg']) && empty($filters['program'])
             ? KpiSnapshots::summary($inScope, empty($filters['year']) ? null : (int) $filters['year']) : null;
         if ($snap !== null) {
             [$total, $latestYear, $thisYr, $lastYr, $active, $downloads] = [$snap['outputs'], $snap['latest_year'], $snap['this_year'], $snap['last_year'], $snap['active_users'], $snap['downloads']];
@@ -64,6 +91,9 @@ final class Dashboard
             $active = self::activeUsers($inScope, $whole);
         }
         $screening = self::screening($inScope);
+        // Visual 3: one college in view (chosen, or a program chosen) shows its programs; otherwise the colleges.
+        $byProgram = count($inScope) === 1 || ! empty($filters['program']);
+        $emerging = self::emergingKeywords($base->all());
 
         return [
             'kpis' => [
@@ -73,17 +103,20 @@ final class Dashboard
                 ['Active users', number_format($active), 'last '.KpiSnapshots::ACTIVE_DAYS.' days', ''],
                 ['Downloads', number_format($downloads), 'all time', ''],
             ],
+            'collegeChart' => $byProgram ? 'program' : 'college',
+            'emergingPeriods' => $emerging['periods'],
             'asOf' => $snap !== null ? $snap['computed_at']->format('M j, Y · g:i A') : null,
             'screeningTotals' => $screening['totals'],
             'charts' => array_filter([
                 'trend' => self::trend($base->all()),
-                'college' => self::byCollegeAndType($recs->all(), $cols),
+                'college' => $byProgram ? self::byProgramAndType($recs->all(), $inScope, (int) ($filters['program'] ?? 0)) : self::byCollegeAndType($recs->all(), $cols),
                 'scatter' => self::themeMap($recs->all(), $labels),
                 'themes' => self::themeBars($recs->all(), $labels),
                 'heat' => $full ? self::heat($recs->all(), $cols, $labels) : null,
                 'type' => self::typeDonut($recs->all()),
                 'sdg' => self::sdgBars($recs->all(), $sdgNames),
                 'keywords' => self::keywordBars($recs->all()),
+                'emerging' => $emerging['chart'],
                 'advisers' => self::adviserBars($recs->all()),
                 'screening' => $screening['chart'],
                 'usage' => $full ? self::usage($inScope, $whole) : null,
@@ -143,6 +176,29 @@ final class Dashboard
             'series' => collect(ResearchTypes::TYPES)->map(fn ($label, $key) => [
                 'name' => $label, 'type' => 'bar', 'stack' => 'a', 'barMaxWidth' => 40,
                 'data' => array_map(fn ($c) => $recs->where('college', $c)->where('type', $key)->count(), $cols),
+            ])->values()->all()];
+    }
+
+    /**
+     * Visual 3 for one college: its programs (horizontal, as names are long), stacked by research type.
+     * Each segment carries the program id, so a click opens that program's records.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @param  list<string>  $colleges
+     * @return array<string, mixed>
+     */
+    private static function byProgramAndType(array $rows, array $colleges, int $program): array
+    {
+        $recs = collect($rows);
+        $programs = Program::whereHas('academicUnit', fn ($u) => $u->whereIn('code', $colleges))
+            ->when($program > 0, fn ($b) => $b->whereKey($program))->orderBy('name')->get(['id', 'name']);
+
+        return ['tooltip' => ['trigger' => 'axis', 'axisPointer' => ['type' => 'shadow']], 'legend' => (object) [],
+            'grid' => ['containLabel' => true], 'xAxis' => ['type' => 'value'],
+            'yAxis' => ['type' => 'category', 'inverse' => true, 'data' => $programs->pluck('name')->all(), 'axisLabel' => ['width' => 170, 'overflow' => 'truncate']],
+            'series' => collect(ResearchTypes::TYPES)->map(fn ($label, $key) => [
+                'name' => $label, 'type' => 'bar', 'stack' => 'a', 'barMaxWidth' => 22,
+                'data' => $programs->map(fn (Program $p) => ['value' => $recs->where('program_id', $p->id)->where('type', $key)->count(), 'key' => $p->id])->all(),
             ])->values()->all()];
     }
 
@@ -248,6 +304,46 @@ final class Dashboard
 
         return ['tooltip' => (object) [], 'xAxis' => ['type' => 'value'], 'yAxis' => ['type' => 'category', 'inverse' => true, 'data' => $counts->keys()->all()],
             'series' => [['type' => 'bar', 'barMaxWidth' => 16, 'itemStyle' => ['color' => 'var(--c2)'], 'data' => $counts->values()->all()]]];
+    }
+
+    /**
+     * Visual 7, emerging keywords: the keywords whose share of studies grew most from the
+     * earlier period (the 3 years before) to the recent period (the latest 2 years), in
+     * percentage points. Only keywords on at least 3 recent studies count. Descriptive only.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array{chart: array<string, mixed>, periods: array{recent: string, earlier: string}}
+     */
+    private static function emergingKeywords(array $rows): array
+    {
+        $recs = collect($rows);
+        $latest = (int) ($recs->max('year') ?? date('Y'));
+        $recent = $recs->where('year', '>=', $latest - 1);
+        $earlier = $recs->where('year', '>=', $latest - 4)->where('year', '<=', $latest - 2);
+        $nr = $recent->count();
+        $ne = $earlier->count();
+        $rc = self::values($recent, 'keywords')->countBy();
+        $ec = self::values($earlier, 'keywords')->countBy();
+
+        $growth = [];
+        foreach ($rc as $kw => $n) {
+            if ($n < 3 || $nr === 0) {
+                continue;
+            }
+            $g = $n / $nr * 100 - ($ne > 0 ? (int) ($ec[$kw] ?? 0) / $ne * 100 : 0);
+            if ($g > 0) {
+                $growth[(string) $kw] = round($g, 1);
+            }
+        }
+        arsort($growth);
+        $top = array_slice($growth, 0, 10, true);
+
+        return [
+            'chart' => ['tooltip' => (object) [], 'xAxis' => ['type' => 'value', 'name' => 'points', 'nameLocation' => 'end'],
+                'yAxis' => ['type' => 'category', 'inverse' => true, 'data' => array_keys($top)],
+                'series' => [['type' => 'bar', 'barMaxWidth' => 16, 'itemStyle' => ['color' => 'var(--c3)'], 'data' => array_values($top)]]],
+            'periods' => ['recent' => ($latest - 1).'–'.$latest, 'earlier' => ($latest - 4).'–'.($latest - 2)],
+        ];
     }
 
     /**

@@ -83,11 +83,15 @@ it('exports Excel, CSV and PDF with the page filters, and logs each export', fun
 });
 
 it('turns every panel into a table', function () {
-    $tables = collect(DashboardExport::tables(Dashboard::build(['CEIS'], [], true), true))->keyBy('title');
+    $tables = collect(DashboardExport::tables(Dashboard::build(['CAHS', 'CASE', 'IBAM', 'CEIS', 'CMT', 'SLCN'], [], true), true))->keyBy('title');
 
     expect($tables->keys()->all())->toContain('Summary', 'Research output per year', 'Outputs by college and type', 'Theme distribution',
-        'Themes by college', 'SDG alignment', 'Top keywords', 'Adviser load', 'Similarity screening', 'Submission compliance per unit',
+        'Themes by college', 'SDG alignment', 'Top keywords', 'Emerging keywords', 'Adviser load', 'Similarity screening', 'Submission compliance per unit',
         'Repository usage', 'Most accessed studies', 'Searches with no or few results')
-        ->and($tables['Outputs by college and type']['headers'])->toBe(['Research type', 'CEIS'])
+        ->and($tables['Outputs by college and type']['headers'])->toBe(['Research type', 'CAHS', 'CASE', 'IBAM', 'CEIS', 'CMT', 'SLCN'])
         ->and($tables['Research output per year']['note'])->toContain('descriptive only');
+
+    // One college in scope: visual 3 lists its programs instead.
+    $one = collect(DashboardExport::tables(Dashboard::build(['CEIS'], [], true), true))->keyBy('title');
+    expect($one['Outputs by program and type']['headers'])->toContain('BS Information Technology');
 });

@@ -2,15 +2,16 @@
 @php
     $base = route('search');
     $sel = 'min-h-11 rounded-md border border-line bg-surface px-3';
-    // Drill-down links keep the current filters. __Y__/__N__ become {name} and __K__ becomes {key} for the chart script.
-    $q = fn (array $extra) => str_replace(['__Y__', '__N__', '__K__'], ['{name}', '{name}', '{key}'],
-        $base.'?'.http_build_query(array_filter(array_merge(array_intersect_key($filters, array_flip(['college', 'year', 'sdg'])), $extra))));
+    // Drill-down links keep the current filters. __Y__/__N__ become {name}, __K__ becomes {key} and __S__ {series} for the chart script.
+    $q = fn (array $extra) => str_replace(['__Y__', '__N__', '__K__', '__S__'], ['{name}', '{name}', '{key}', '{series}'],
+        $base.'?'.http_build_query(array_filter(array_merge(array_intersect_key($filters, array_flip(['college', 'program', 'year', 'sdg'])), $extra))));
     $themes = \App\Domain\Site\Corpus::themeLabels();
+    $programs = \App\Domain\Search\RecordSearch::programOptions($filters['college'] ?? null, $scope);
 @endphp
 <x-layouts.app :title="$title">
     <x-page-head :eyebrow="$eyebrow" :title="$title">
         <x-slot:actions>
-            @php $exportQuery = array_filter(array_intersect_key($filters, array_flip(['college', 'year', 'theme', 'sdg']))); @endphp
+            @php $exportQuery = array_filter(array_intersect_key($filters, array_flip(['college', 'program', 'year', 'theme', 'sdg']))); @endphp
             <x-button :href="route($route.'.export', ['format' => 'xlsx'] + $exportQuery)">Export Excel</x-button>
             <x-button :href="route($route.'.export', ['format' => 'csv'] + $exportQuery)">CSV</x-button>
             <x-button :href="route($route.'.export', ['format' => 'pdf'] + $exportQuery)">Export PDF report</x-button>
@@ -22,6 +23,10 @@
             <select id="an-college" name="college" class="{{ $sel }}" data-autosubmit>
                 <option value="">{{ count($scope) === 6 ? 'All colleges' : 'All in cluster' }}</option>
                 @foreach ($scope as $c)<option @selected(($filters['college'] ?? '') === $c)>{{ $c }}</option>@endforeach
+            </select></div>
+        <div class="flex flex-col gap-1"><label for="an-program" class="text-[13px] font-medium">Program</label>
+            <select id="an-program" name="program" class="{{ $sel }}" style="max-width: 260px" data-autosubmit>
+                <option value="">All programs</option>@foreach ($programs as $id => $l)<option value="{{ $id }}" @selected(($filters['program'] ?? '') == $id)>{{ $l }}</option>@endforeach
             </select></div>
         <div class="flex flex-col gap-1"><label for="an-year" class="text-[13px] font-medium">Year</label>
             <select id="an-year" name="year" class="{{ $sel }}" data-autosubmit>
@@ -46,7 +51,13 @@
     <div class="g2">
         <x-panel title="Research output per year"><x-slot:actions><span class="text-muted small">trend line is descriptive only</span></x-slot:actions>
             <x-chart :option="$d['charts']['trend']" label="Research output per year" :link="$q(['year' => '__Y__'])" /></x-panel>
-        <x-panel title="Outputs by college and type"><x-chart :option="$d['charts']['college']" label="Outputs by college and research type" :link="$base.'?college={name}&type={series}'" /></x-panel>
+        @if ($d['collegeChart'] === 'program')
+            <x-panel title="Outputs by program and type"><x-slot:actions><span class="text-muted small">choose “All colleges” to compare colleges</span></x-slot:actions>
+                <x-chart :option="$d['charts']['college']" size="tall" label="Outputs by program and research type" :link="$q(['program' => '__K__', 'type' => '__S__'])" /></x-panel>
+        @else
+            <x-panel title="Outputs by college and type"><x-slot:actions><span class="text-muted small">choose a college to see its programs</span></x-slot:actions>
+                <x-chart :option="$d['charts']['college']" label="Outputs by college and research type" :link="$base.'?college={name}&type={series}'" /></x-panel>
+        @endif
         <x-panel title="Research theme map"><x-slot:actions><span class="text-muted small">K-Means, 2-D projection · {{ \App\Domain\Site\Corpus::currentRun() ? 'themes of '.\App\Domain\Site\Corpus::currentRun()->public_id : 'sample themes until the URDC confirms a run' }}</span></x-slot:actions>
             <x-chart :option="$d['charts']['scatter']" size="tall" label="Research theme map" :link="url('/studies').'/{id}'" /></x-panel>
         <x-panel title="Theme distribution"><x-chart :option="$d['charts']['themes']" size="tall" label="Theme distribution" :link="$q(['theme' => '__K__'])" /></x-panel>
@@ -58,6 +69,13 @@
         <x-panel title="SDG alignment"><x-chart :option="$d['charts']['sdg']" label="SDG alignment" :link="$q(['sdg' => '__K__'])" /></x-panel>
         <x-panel title="Top keywords"><x-slot:actions><span class="text-muted small">last 3 years</span></x-slot:actions>
             <x-chart :option="$d['charts']['keywords']" label="Top keywords" :link="$q(['q' => '__N__'])" /></x-panel>
+        <x-panel title="Emerging keywords"><x-slot:actions><span class="text-muted small">share of studies {{ $d['emergingPeriods']['recent'] }} vs {{ $d['emergingPeriods']['earlier'] }} · descriptive only</span></x-slot:actions>
+            @if (($d['charts']['emerging']['yAxis']['data'] ?? []) === [])
+                <p class="text-muted small py-6 text-center">No keyword on at least 3 recent studies grew in share.</p>
+            @else
+                <x-chart :option="$d['charts']['emerging']" label="Emerging keywords, growth in percentage points" :link="$q(['q' => '__N__'])" />
+                <p class="small text-muted mt-1">Percentage points: the keyword's share of studies in {{ $d['emergingPeriods']['recent'] }} minus its share in {{ $d['emergingPeriods']['earlier'] }}. Keywords on at least 3 recent studies.</p>
+            @endif</x-panel>
         <x-panel title="Adviser load"><x-slot:actions><span class="text-muted small">studies supervised, last 3 years</span></x-slot:actions>
             <x-chart :option="$d['charts']['advisers']" label="Adviser load" :link="$q(['adviser' => '__N__'])" /></x-panel>
         <x-panel title="Similarity screening summary"><x-slot:actions><span class="text-muted small">{{ $d['screeningTotals']['year'] }} · chart: last 6 months</span></x-slot:actions>

@@ -97,7 +97,7 @@ class CoordinatorController extends Controller
     {
         $cluster = $this->cluster();
         $scope = $cluster?->academicUnits->pluck('code')->all() ?: ['IBAM', 'CEIS'];
-        $filters = $request->only('college', 'year', 'theme', 'sdg');
+        $filters = Dashboard::filters($request, $scope);
 
         return view('analytics.dashboard', [
             'title' => 'Cluster analytics',
@@ -114,7 +114,7 @@ class CoordinatorController extends Controller
         $scope = $cluster?->academicUnits->pluck('code')->all() ?: ['IBAM', 'CEIS'];
 
         return DashboardExport::response($format, 'Cluster analytics', 'Cluster '.($cluster->number ?? 1).' · '.($cluster->name ?? 'Business and Technology'),
-            $scope, $request->only('college', 'year', 'theme', 'sdg'), false, $request->user());
+            $scope, Dashboard::filters($request, $scope), false, $request->user());
     }
 
     private function cluster(): ?ResearchCluster
